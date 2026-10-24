@@ -25,21 +25,19 @@ from scoring import rows_to_map, score  # noqa: E402
 
 HAND = {f"case_{i:02d}" for i in range(1, 11)}
 FINAL = ROOT.parent / "hackerrank-orchestrate-october26" / "runs/20261024T175408Z-427c28/output.csv"  # frozen release (main checkout)
-VARIANTS = {
-    "baseline (final-src, deterministic)": {},
-    "A1 propagate exclusivity": {"PROPAGATE": True},
-    "A2 A1 + status filter": {"PROPAGATE": True, "STATUS_FILTER": True},
-    "A3 cite inferred account": {"CITE_INFERRED": True},
-    "A1+A3": {"PROPAGATE": True, "CITE_INFERRED": True},
-    "C1 hashed-identifier rule": {"SECONDARY_ID_RULE": True},
-    "A1+C1": {"PROPAGATE": True, "SECONDARY_ID_RULE": True},
+VARIANTS = {   # first entry is the comparison baseline
+    "exp/accuracy (C1)": {"SECONDARY_ID_RULE": True},
+    "A4 ordinal alignment": {"SECONDARY_ID_RULE": True, "ORDINAL": True},
+    "A4b ordinal, same operation stream": {"SECONDARY_ID_RULE": True, "ORDINAL": True, "ORDINAL_SAME_STREAM": True},
 }
-LINK_FLAGS = {"PROPAGATE", "STATUS_FILTER"}
+LINK_FLAGS = {"PROPAGATE", "STATUS_FILTER", "ORDINAL", "ORDINAL_SAME_STREAM"}
 
 
 def set_flags(flags):
     linking.PROPAGATE = flags.get("PROPAGATE", False)
     linking.STATUS_FILTER = flags.get("STATUS_FILTER", False)
+    linking.ORDINAL = flags.get("ORDINAL", False)
+    linking.ORDINAL_SAME_STREAM = flags.get("ORDINAL_SAME_STREAM", False)
     core.CITE_INFERRED = flags.get("CITE_INFERRED", False)
     core.SECONDARY_ID_RULE = flags.get("SECONDARY_ID_RULE", False)
 
@@ -52,7 +50,8 @@ def identity(ctx, gold):
         if not o.resource_id:
             c["unresolved"] += 1
         else:
-            c[("correct" if o.resource_id in want else "wrong") + ("" if o.tier == "DIRECT" else "_inferred")] += 1
+            kind = "" if o.tier == "DIRECT" else "_ordinal" if o.basis.startswith("ordinal") else "_inferred"
+            c[("correct" if o.resource_id in want else "wrong") + kind] += 1
     return dict(c)
 
 

@@ -209,3 +209,34 @@ E21 full shared path with C1 (model classification + investigator, cache only, 0
 status 0.906, exact 11/32, step P/R/F1 1.000 / 0.834 / 0.910, resource recall 0.712. Tests added:
 hash-only vs hash+email record (metamorphic), inclusive/strict `audit_at` boundary on case_14,
 unrelated-subject evidence leaves case_11 unchanged.
+
+### A4 — status-free ordinal alignment of worker batches (E22)
+Definition (`linking.ordinal_alignment`): requests that stay UNRESOLVED under policy D but have their
+own anchor (earliest deletion-worker operation, after `requested_at`, on a resource evidence ties to
+the subject) form groups with the primary-profile deletions they compete for (connected components).
+A group is matched rank-to-rank — requests by anchor `(event_time, numeric activity id)`, deletions
+by their earliest event — only if: the group is closed (no other unassigned request, anchored or not,
+plausibly claims one of its deletions; an anchorless request's plausible set is its lifecycle
+`requested_at .. reported_at + 15 min`); #deletions = #requests ≥ 2; anchor and deletion event times
+are strictly increasing (no ties); every matched deletion is in that request's candidate set and
+precedes its anchor. Retries count once at the earliest event. No `reported_status` /
+`reported_result`. Results are CONDITIONALLY_INFERRED, so they only produce uncited future checks.
+
+| Variant | exact (hand/gen) | P / R / F1 | res-recall | ordinal assignments (samples) | eval rows changed | shuffled status |
+|---|---|---|---|---|---|---|
+| exp/accuracy (C1), deterministic | 11 (3/8) | 0.994 / 0.819 / 0.898 | 0.712 | — | — | — |
+| A4 | 12 (3/9): +32 | 0.988 / 0.824 / 0.898 | 0.721 | 2 correct, **1 wrong** (case_09 ↔ eval case_64) | **73** | 0 changes |
+| A4b + anchors must share operation type and system | 12 (3/9): +32 | 0.994 / 0.824 / 0.901 | 0.721 | 2 correct, 0 wrong | **0** | 0 changes |
+| Full shared path, C1 | 11 | 1.000 / 0.834 / 0.910 | 0.712 | — | — | — |
+| Full shared path, C1 + A4b | 12 | 1.000 / 0.839 / 0.913 | 0.721 | 2 / 0 | 0 | — |
+
+A4's wrong match: case_09's anchor is a CHECK_RESTORE_ACCESS event while eval case_64's anchor is a
+different operation type; operation types sit at different offsets inside a worker batch, so their
+order says nothing about request order. A4b's constraint removes it, but it was introduced after
+seeing that single failure and leaves only one sample group (case_31/32) and no evaluation row.
+Adversarial tests (`tests/test_ordinal.py`, 8): shuffled file order (stable), equal anchor
+timestamps (abstain), decoy deletion (abstain), missing deletion (abstain), retried deletion
+(stable), different operation streams (abstain), anchorless outsider (abstain) — all pass.
+Decision: **REVERT** both (flags off). A4 makes demonstrably wrong matches and would change 73
+submitted rows at a sample error rate of 1 in 3; A4b is safe on the tests but changes no submitted
+row, so its only effect is a sample score that rests on a post-hoc constraint.

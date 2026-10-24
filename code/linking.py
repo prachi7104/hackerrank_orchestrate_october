@@ -42,6 +42,8 @@ LIFECYCLE_FALLBACK = False   # experiment X1: anchorless cases may use a lifecyc
 LIFECYCLE_TOLERANCE_MIN = 15
 PROPAGATE = False      # experiment A1: iterate exclusivity after each round of assignments
 STATUS_FILTER = False  # experiment A2: also require reported_result to match reported_status
+ORDINAL = False        # experiment A4: status-free ordinal alignment of competing worker batches
+ORDINAL_SAME_STREAM = False  # A4b: order is compared only when all anchors share operation type and system
 ANCHOR_WINDOW_MIN = 180   # result is flat for windows of 120-360 min (experiments.md, E14)
 
 
@@ -80,6 +82,7 @@ def conditional_ownership(cases: list[dict], direct: dict[str, set], activities:
     taken = {rid for d in direct.values() for rid in d}
     cands: dict[str, set | None] = {}
     anchors: dict[str, str] = {}
+    anchor_events: dict[str, dict] = {}
     for c in cases:
         cid = c["case_id"]
         if cid in out:
@@ -97,8 +100,9 @@ def conditional_ownership(cases: list[dict], direct: dict[str, set], activities:
                           and not other_owner(c, rid)}
             anchors[cid] = "lifecycle"
             continue
-        anchor = min(ops, key=lambda a: a["event_time"])
+        anchor = min(ops, key=event_key)
         anchors[cid] = anchor["activity_id"]
+        anchor_events[cid] = anchor
         t0 = _t(anchor["event_time"])
         cands[cid] = {rid for rid, a in deletes.items()
                       if rid not in taken and a["event_time"] >= c["requested_at"]
@@ -136,7 +140,89 @@ def conditional_ownership(cases: list[dict], direct: dict[str, set], activities:
             reason = ("no evidenced operation history" if cand is None else "no candidate in window" if not cand
                       else "competing candidates" if len(cand) > 1 else "candidate also fits another request")
             out[cid] = Ownership("UNRESOLVED", None, sorted(cand or ()), reason)
+    if ORDINAL:
+        out.update(ordinal_alignment(cases, out, cands, anchor_events, activities, other_owner, taken))
     return out
+
+
+def event_key(a: dict) -> tuple:
+    """Total order of activity events: event time, then the numeric activity id (file order never used)."""
+    digits = "".join(ch for ch in a["activity_id"] if ch.isdigit())
+    return a["event_time"], int(digits or 0), a["activity_id"]
+
+
+def ordinal_alignment(cases, out, cands, anchor_events, activities, other_owner, taken) -> dict:
+    """A4. Within a group of requests that compete for the same primary-profile deletions, match the
+    k-th request (ordered by its own earliest evidenced worker operation) to the k-th deletion
+    (ordered by its earliest event). Applied only when every condition below holds; otherwise the
+    whole group stays UNRESOLVED:
+      * the group is closed: every request in it has its own anchor, its candidates are exactly the
+        group's deletions, and no other unassigned request (anchored or not) could plausibly claim one
+        of them (an anchorless request's plausible set is its lifecycle requested_at .. reported_at+15m);
+      * the group has as many deletions as requests (k >= 2): no missing, extra or decoy events;
+      * request anchors and deletions each have strictly increasing event times (no equal timestamps);
+      * (A4b) every anchor in the group is the same operation type on the same system;
+      * each rank-matched deletion is in that request's own candidate set and precedes its anchor.
+    A retried deletion of the same account counts once, at its earliest event. reported_status and
+    reported_result are never read. Results are CONDITIONALLY_INFERRED: uncited future checks only.
+    """
+    first_delete: dict[str, dict] = {}
+    for a in activities:
+        if a["source_system"] == "deletion_worker" and a["target_system"] == "account_service" and a["event_type"] == "DELETE_RECORD":
+            if a["resource_id"] not in first_delete or event_key(a) < event_key(first_delete[a["resource_id"]]):
+                first_delete[a["resource_id"]] = a
+    open_ids = {cid for cid, o in out.items() if o.tier == "UNRESOLVED"}
+    anchored = {cid: set(cands[cid]) for cid in open_ids if cands.get(cid) and cid in anchor_events}
+    assigned = {o.resource_id for o in out.values() if o.resource_id}
+    by_id = {c["case_id"]: c for c in cases}
+
+    def plausible(cid) -> set:
+        if cid in anchored:
+            return anchored[cid]
+        c = by_id[cid]
+        hi = _t(c["reported_at"])
+        return {rid for rid, a in first_delete.items()
+                if rid not in taken and rid not in assigned and c["requested_at"] <= a["event_time"] <= c["audit_at"]
+                and (_t(a["event_time"]) - hi).total_seconds() / 60 <= LIFECYCLE_TOLERANCE_MIN and not other_owner(c, rid)}
+
+    groups, seen = [], set()
+    for start in anchored:          # connected components over shared candidate deletions
+        if start in seen:
+            continue
+        reqs, accts, todo = set(), set(), [start]
+        while todo:
+            cid = todo.pop()
+            if cid in reqs:
+                continue
+            reqs.add(cid)
+            accts |= anchored[cid]
+            todo += [o for o in anchored if o not in reqs and anchored[o] & accts]
+        seen |= reqs
+        groups.append((reqs, accts))
+    result = {}
+    for reqs, accts in groups:
+        if len(reqs) < 2 or len(reqs) != len(accts):
+            continue
+        outsiders = [cid for cid in open_ids - reqs if plausible(cid) & accts]
+        if outsiders:
+            continue
+        if ORDINAL_SAME_STREAM and len({(anchor_events[c]["event_type"], anchor_events[c]["target_system"]) for c in reqs}) > 1:
+            continue    # A4b: anchors of different operation types sit at different offsets in a batch
+        r_order = sorted(reqs, key=lambda cid: event_key(anchor_events[cid]))
+        a_order = sorted(accts, key=lambda rid: event_key(first_delete[rid]))
+        r_times = [anchor_events[cid]["event_time"] for cid in r_order]
+        a_times = [first_delete[rid]["event_time"] for rid in a_order]
+        if len(set(r_times)) < len(r_times) or len(set(a_times)) < len(a_times):
+            continue
+        pairs = list(zip(r_order, a_order))
+        if not all(rid in anchored[cid] and first_delete[rid]["event_time"] < anchor_events[cid]["event_time"]
+                   for cid, rid in pairs):
+            continue
+        for k, (cid, rid) in enumerate(pairs, 1):
+            result[cid] = Ownership("CONDITIONALLY_INFERRED", rid, sorted(accts),
+                                    f"ordinal alignment {k}/{len(pairs)}: worker deletion {first_delete[rid]['activity_id']} "
+                                    f"matches the subject's operation order (anchor {anchor_events[cid]['activity_id']})")
+    return result
 
 
 def assign_accounts(cases: list[dict], direct: dict[str, set], activities: list[dict],
