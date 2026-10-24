@@ -29,67 +29,74 @@ def evidence_times() -> dict[str, str]:
     return t
 
 
-def validate(path: Path) -> list[str]:
-    errors = []
+def validate(path: Path) -> dict[str, list[str]]:
+    """Two separate reports.
+    structural: the file can be parsed and graded (header, ids, order, schema, enums, numbering,
+                evidence id existence, audit_at boundary, citation rules for future steps).
+    semantic:   the row is a complete audit answer under the contract (COMPLETE carries cited
+                verifications, INCOMPLETE carries findings with their remediation and checks).
+    Grounding of each citation needs the evidence table and is checked in code/main.py."""
+    structural, semantic = [], []
     requests = {r["case_id"]: r for r in csv.DictReader(open(DATASET / "deletion_requests.csv", encoding="utf-8"))}
     with open(path, encoding="utf-8", newline="") as f:
         reader = csv.reader(f)
         header = next(reader)
         rows = list(reader)
     if header != OUTPUT_COLUMNS:
-        errors.append(f"header {header} != {OUTPUT_COLUMNS}")
+        structural.append(f"header {header} != {OUTPUT_COLUMNS}")
     ids = [r[0] for r in rows]
     if sorted(ids) != sorted(requests) or len(ids) != len(set(ids)):
-        errors.append(f"case ids differ from deletion_requests.csv ({len(ids)} rows, {len(set(ids))} unique)")
+        structural.append(f"case ids differ from deletion_requests.csv ({len(ids)} rows, {len(set(ids))} unique)")
     if ids != sorted(ids, key=case_number):
-        errors.append("rows are not sorted by case number")
+        structural.append("rows are not sorted by case number")
     times = evidence_times()
     for row in rows:
         if len(row) != 3:
-            errors.append(f"{row[:1]}: {len(row)} columns")
+            structural.append(f"{row[:1]}: {len(row)} columns")
             continue
         cid, status, raw = row
         audit_at = requests.get(cid, {}).get("audit_at", "")
         try:
             steps = parse_steps(raw)
         except ValueError as e:
-            errors.append(f"{cid}: {e}")
+            structural.append(f"{cid}: {e}")
             continue
         if status not in STATUSES:
-            errors.append(f"{cid}: status {status}")
+            structural.append(f"{cid}: status {status}")
         phases = [s["phase"] for s in steps]
         keys = [(OP_INDEX[s["operation"]], s["system_id"], s["resource_id"]) for s in steps]
         if keys != sorted(keys):
-            errors.append(f"{cid}: steps not in phase/operation/system/resource order")
+            structural.append(f"{cid}: steps not in phase/operation/system/resource order")
         if status == "NOT_APPLICABLE" and steps:
-            errors.append(f"{cid}: NOT_APPLICABLE with steps")
-        if status == "COMPLETE":
-            if not steps or set(phases) != {"VERIFICATION"}:
-                errors.append(f"{cid}: COMPLETE must contain only verification steps")
-        if status == "INCOMPLETE" and "FINDING" not in phases:
-            errors.append(f"{cid}: INCOMPLETE without findings")
+            structural.append(f"{cid}: NOT_APPLICABLE with steps")
         for s in steps:
             cited = s["evidence_id"]
             needs = s["phase"] == "FINDING" or status == "COMPLETE"
             if needs and not cited:
-                errors.append(f"{cid}: step {s['step_no']} lacks evidence")
+                semantic.append(f"{cid}: step {s['step_no']} lacks evidence")
             if not needs and cited:
-                errors.append(f"{cid}: step {s['step_no']} is future work but cites {cited}")
+                structural.append(f"{cid}: step {s['step_no']} is future work but cites {cited}")
             if cited and cited not in times:
-                errors.append(f"{cid}: unknown evidence id {cited}")
+                structural.append(f"{cid}: unknown evidence id {cited}")
             elif cited and times[cited] > audit_at:
-                errors.append(f"{cid}: {cited} captured {times[cited]} after audit_at {audit_at}")
+                structural.append(f"{cid}: {cited} captured {times[cited]} after audit_at {audit_at}")
+        if status == "COMPLETE" and (not steps or set(phases) != {"VERIFICATION"}):
+            semantic.append(f"{cid}: COMPLETE must contain cited verification steps only")
+        if status == "INCOMPLETE" and "FINDING" not in phases:
+            semantic.append(f"{cid}: INCOMPLETE without findings")
         if status == "INCOMPLETE":   # every finding needs its remediation and post-remediation check
             found = {(s["system_id"], s["resource_id"]) for s in steps if s["phase"] == "FINDING"}
             fixed = {(s["system_id"], s["resource_id"]) for s in steps if s["phase"] == "REMEDIATION"}
             checked = {(s["system_id"], s["resource_id"]) for s in steps if s["phase"] == "VERIFICATION"}
             if not found <= fixed or not fixed <= checked:
-                errors.append(f"{cid}: finding without remediation or verification")
-    return errors
+                semantic.append(f"{cid}: finding without remediation or verification")
+    return {"structural": structural, "semantic": semantic}
 
 
 if __name__ == "__main__":
-    errs = validate(Path(sys.argv[1]))
-    print("\n".join(errs[:50]) or "valid")
-    print(f"{len(errs)} error(s)")
-    raise SystemExit(1 if errs else 0)
+    rep = validate(Path(sys.argv[1]))
+    for kind in ("structural", "semantic"):
+        print(f"{kind}: {len(rep[kind])} error(s)")
+        for e in rep[kind][:30]:
+            print("  " + e)
+    raise SystemExit(1 if rep["structural"] else 0)

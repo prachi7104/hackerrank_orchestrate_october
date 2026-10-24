@@ -81,3 +81,17 @@ def test_generation_is_deterministic(ctx):
     a = run(ctx, cases, {c["case_id"]: True for c in cases})
     b = run(build_context(), cases, {c["case_id"]: True for c in cases})
     assert {k: serialise_steps(v.steps) for k, v in a.items()} == {k: serialise_steps(v.steps) for k, v in b.items()}
+
+
+def test_experiments_and_fallback_are_off_by_default():
+    # X1/X2 (experiments.md E17) and the noncompliant serialisation fallback must never activate silently.
+    import core
+    import linking
+    import main
+    assert linking.LIFECYCLE_FALLBACK is False and core.GAP_ACCOUNT_ABSENCE is False
+    assert core.ACCOUNT_POLICY == "D"
+    args = main.parser().parse_args([])
+    assert args.gap_fallback is None and args.fallback_approval == ""
+    assert main.main(["--gap-fallback", "complete-empty"]) == 2      # refused without a recorded approval
+    src = Path(main.__file__).read_text(encoding="utf-8")
+    assert "LIFECYCLE_FALLBACK" not in src and "GAP_ACCOUNT_ABSENCE" not in src

@@ -128,3 +128,35 @@ def extract(g: Gemini, dataset: Path, activities: list[dict], identities: list[d
 
 def planned_requests(dataset: Path) -> int:
     return sum(1 for f in load_manifest(dataset) if f.kind == "png")
+
+
+RESTORE_SCHEMA = {"type": "object", "properties": {"completed_restores": {"type": "array", "items": {
+    "type": "object", "properties": {"text": {"type": "string"}, "backup_id": {"type": "string"}},
+    "required": ["text", "backup_id"]}}}, "required": ["completed_restores"]}
+
+
+def restore_capability(g: Gemini, dataset: Path, observations: list[Observation]) -> dict[str, list[str]]:
+    """For screenshots that show backup archives: printed lines reporting a *completed* restore.
+
+    Evidence-gap policy input only. A line is kept when it names a backup id of the known form and
+    the word restore; everything else is discarded. Returns {file_id: [verbatim lines]}.
+    """
+    files = {f.file_id: f for f in load_manifest(dataset) if f.kind == "png"}
+    shots = sorted({o.file_id for o in observations if o.resource_id.startswith("backup_") and o.file_id in files})
+    out = {}
+    for fid in shots:
+        try:
+            reply = g.generate("vision:restore", [fid], [{"role": "user", "parts": [image_part(files[fid].path), {
+                "text": "List every line printed on this screen that reports a completed restore of a backup "
+                        "archive. Copy each line verbatim and give the backup id it names. Return an empty list "
+                        "if there is none."}]}],
+                prompt_version="restore-v1", schema=RESTORE_SCHEMA, config={"thinkingConfig": {"thinkingLevel": "low"}})
+            lines = json.loads(reply.text)["completed_restores"]
+        except (CallFailed, ValueError, KeyError) as e:
+            g.log({"kind": "parse_error", "purpose": "vision:restore", "items": [fid], "detail": str(e)[:200]})
+            continue
+        kept = [x["text"] for x in lines if RESOURCE_RE.fullmatch(x.get("backup_id", "").strip())
+                and x["backup_id"].strip() in x["text"] and "restor" in x["text"].lower()]
+        if kept:
+            out[fid] = kept
+    return out

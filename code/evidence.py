@@ -304,7 +304,7 @@ def parse_log(fid, cap, path: Path) -> list[Observation]:
     context: dict[str, dict] = {}
     for kv in events:
         t = kv.get("trace_id")
-        if t and "resource_id" not in kv:
+        if t:   # readback "started" lines carry both the resource_id and the lookup key
             context.setdefault(t, {}).update({k: v for k, v in kv.items() if k in LOOKUP_FIELDS or k == "subject_ref"})
     out = []
     for kv in events:

@@ -56,6 +56,8 @@ def main(argv=None) -> int:
     pred = {cid: (r.status, json.loads(serialise_steps(r.steps))) for cid, r in results.items()}
     report = score(pred, gold)
     print(json.dumps({"intent": args.intent, **report["summary"]}, indent=2))
+    gaps = sorted(c for c, r in results.items() if r.status == "UNRESOLVED_EVIDENCE")
+    print(f"unresolved evidence (scored as wrong status, no fallback applied): {len(gaps)} {gaps}")
     if failures:
         print("operational failures (not audited):", failures)
     if usage:

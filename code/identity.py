@@ -62,3 +62,18 @@ class IdentityIndex:
             if a["user_id"] in subject.user_ids and a["field_name"] == "name":
                 subject.names.update(v for v in (a["old_value"], a["new_value"]) if v)
         return subject
+
+    def owner_index(self) -> dict[str, str]:
+        """Normalised email / phone / email hash / user_id -> user_id, current and historical."""
+        out = {}
+        for u in self.current:
+            out[norm(u["user_id"])] = u["user_id"]
+            for f in ("email", "phone", "email_hash"):
+                if u[f]:
+                    out[norm(u[f])] = u["user_id"]
+        for a in self.history:
+            if a["field_name"] in ("email", "phone", "email_hash"):
+                for v in (a["old_value"], a["new_value"]):
+                    if v:
+                        out.setdefault(norm(v), a["user_id"])
+        return out

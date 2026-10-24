@@ -38,7 +38,16 @@ def build_context(g=None, status_compat: bool = True) -> AuditContext:
     ctx = AuditContext(DATASET, samples + evals, status_compat=status_compat, record_time=False,
                        extra_observations=shots)
     ctx.screenshot_report = report
+    ctx.restore_capability = restore_lines(g, shots)
     return ctx
+
+
+def restore_lines(g, shots) -> dict:
+    if g is None:
+        return {}
+    import vision
+    g.admit(2)
+    return vision.restore_capability(g, DATASET, shots)
 
 
 def build_dev_context(g=None, status_compat: bool = True, record_time: bool = False) -> AuditContext:
@@ -48,6 +57,7 @@ def build_dev_context(g=None, status_compat: bool = True, record_time: bool = Fa
     ctx = AuditContext(DATASET, samples + evals, status_compat=status_compat, record_time=record_time,
                        extra_observations=shots)
     ctx.screenshot_report = report
+    ctx.restore_capability = restore_lines(g, shots)
     return ctx
 
 

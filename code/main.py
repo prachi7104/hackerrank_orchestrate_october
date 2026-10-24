@@ -27,6 +27,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 from llm import MODEL, Gemini, run_summary  # noqa: E402
 from pipeline import DATASET, ROOT, authorize, build_context, read_rows, run  # noqa: E402
 from schema import OUTPUT_COLUMNS, serialise_steps  # noqa: E402
+from grounding import audit_result  # noqa: E402
 from validate import case_number, validate  # noqa: E402
 
 
@@ -49,7 +50,7 @@ def write_atomic(path: Path, rows: list[list[str]]) -> None:
     os.replace(tmp, path)
 
 
-def diagnostics(results, cases, ctx, auth, usage, errors) -> str:
+def diagnostics(results, cases, ctx, auth, usage, quality) -> str:
     status = collections.Counter(r.status for r in results.values())
     steps = [len(r.steps) for r in results.values()]
     ops = collections.Counter(s.operation for r in results.values() for s in r.steps)
@@ -73,7 +74,7 @@ def diagnostics(results, cases, ctx, auth, usage, errors) -> str:
         "",
         "Development diagnostics only. Nothing here estimates hidden-test accuracy.",
         "",
-        f"- rows: {len(results)}; validator errors: {len(errors)}",
+        f"- rows: {len(results)}",
         f"- status: {dict(status)}",
         f"- NOT_APPLICABLE request types: {dict(na_types)}",
         f"- steps per row: min {min(steps)}, median {sorted(steps)[len(steps) // 2]}, max {max(steps)}, total {sum(steps)}",
@@ -98,6 +99,16 @@ def diagnostics(results, cases, ctx, auth, usage, errors) -> str:
         "- request classification: 0 (generation refuses to write otherwise)",
         f"- screenshot extraction failures: {[r.file_id for r in shot if r.status != 'ok']}",
         "",
+        "## Validation",
+        f"- structural errors: {len(quality['structural'])}",
+        f"- semantic errors: {len(quality['semantic'])} (declared exceptions: {len(quality['declared'])}; "
+        f"undeclared: {len(quality['undeclared'])})",
+        f"- grounding: {quality['grounded']} cited steps supported, {len(quality['ungrounded'])} unsupported",
+        *[f"  - {e}" for e in quality["semantic"] + quality["ungrounded"]],
+        "",
+        "## Evidence-gap policy (contract exceptions and inferences, not proof)",
+        *[f"- {cid}: {json.dumps(g, ensure_ascii=False)}" for cid, g in quality["gaps"].items()],
+        "",
         "## API usage (this run, from the ledger)",
         f"- model: {MODEL}; {json.dumps(usage)}",
         "- actual cost: 0 (Free tier); list-price equivalent is computed in usage_report.md from the final run",
@@ -105,11 +116,22 @@ def diagnostics(results, cases, ctx, auth, usage, errors) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main(argv=None) -> int:
+def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser()
     ap.add_argument("--promote", action="store_true")
     ap.add_argument("--final", action="store_true")
-    args = ap.parse_args(argv)
+    ap.add_argument("--gap-fallback", choices=["incomplete-empty", "complete-empty"], default=None,
+                    help="NONCOMPLIANT serialisation for UNRESOLVED_EVIDENCE rows; needs --fallback-approval")
+    ap.add_argument("--fallback-approval", default="",
+                    help="who approved the fallback and when; recorded in the manifest")
+    return ap
+
+
+def main(argv=None) -> int:
+    args = parser().parse_args(argv)
+    if args.gap_fallback and not args.fallback_approval.strip():
+        print("--gap-fallback is a noncompliant exception and needs --fallback-approval \"<approver, date>\"")
+        return 2
 
     cases = read_rows("deletion_requests.csv")
     g = Gemini(final=args.final)
@@ -120,27 +142,57 @@ def main(argv=None) -> int:
     ctx = build_context(g)
     results = run(ctx, cases, intents)
     ordered = sorted(results, key=case_number)
-    rows = [[cid, results[cid].status, serialise_steps(results[cid].steps)] for cid in ordered]
+    unresolved = [cid for cid in ordered if results[cid].status == "UNRESOLVED_EVIDENCE"]
+    fallback = {"incomplete-empty": "INCOMPLETE", "complete-empty": "COMPLETE"}.get(args.gap_fallback)
+    if unresolved and not fallback:
+        print(f"{len(unresolved)} case(s) have no admissible evidence (UNRESOLVED_EVIDENCE): {unresolved}. "
+              "No output.csv written; a serialisation fallback needs --gap-fallback and explicit approval.")
+        return 3
+    serialised = {cid: (fallback if cid in unresolved else results[cid].status) for cid in ordered}
+    rows = [[cid, serialised[cid], serialise_steps(results[cid].steps)] for cid in ordered]
 
     out_dir = ROOT / "runs" / g.run_id
     out_dir.mkdir(parents=True)
     out = out_dir / "output.csv"
     write_atomic(out, rows)
-    errors = validate(out)
+    rep = validate(out)
+    by_id = {c["case_id"]: c for c in cases}
+    gaps = {cid: results[cid].trace["gap"] for cid in ordered if results[cid].trace.get("gap")}
+    ungrounded, grounded = [], 0
+    for cid in ordered:
+        if results[cid].status != "NOT_APPLICABLE":
+            for a in audit_result(ctx, by_id[cid], results[cid]):
+                if a["supported"]:
+                    grounded += 1
+                else:
+                    ungrounded.append(f"{cid}: {a['operation']} {a['resource_id']} cites {a['evidence_id']}: {a['reason']}")
+    issues = rep["semantic"] + ungrounded
+    quality = {"structural": rep["structural"], "semantic": rep["semantic"], "grounded": grounded,
+               "ungrounded": ungrounded, "gaps": gaps,
+               "declared": [e for e in issues if e.split(":")[0] in gaps],
+               "undeclared": [e for e in issues if e.split(":")[0] not in gaps]}
     usage = run_summary(g.run_id)
-    (out_dir / "diagnostics.md").write_text(diagnostics(results, cases, ctx, auth, usage, errors), encoding="utf-8")
+    (out_dir / "diagnostics.md").write_text(diagnostics(results, cases, ctx, auth, usage, quality), encoding="utf-8")
     (out_dir / "traces.jsonl").write_text("".join(
         json.dumps({"case_id": c, "status": results[c].status, "authorisation": auth[c], **results[c].trace},
                    ensure_ascii=False, default=list) + "\n" for c in ordered), encoding="utf-8")
     manifest = {
         "run_id": g.run_id, "final": args.final, "model": MODEL, "git": git_state(),
         "inputs": {p.name: file_hash(p) for p in sorted(DATASET.glob("*.csv"))},
-        "output_sha256": file_hash(out), "rows": len(rows), "validator_errors": len(errors), "usage": usage,
+        "output_sha256": file_hash(out), "rows": len(rows), "usage": usage,
+        "structural_errors": len(rep["structural"]), "semantic_errors": len(rep["semantic"]),
+        "grounding_unsupported": len(ungrounded), "declared_exceptions": quality["declared"],
+        "undeclared_issues": quality["undeclared"], "evidence_gaps": gaps,
+        "noncompliant_fallback": {"mode": args.gap_fallback, "approval": args.fallback_approval,
+                                  "rows": {c: fallback for c in unresolved}},
     }
     (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8")
-    print(f"candidate: {out}  rows={len(rows)}  validator_errors={len(errors)}")
-    if errors:
-        print("\n".join(errors[:20]))
+    print(f"candidate: {out}  rows={len(rows)}  structural_errors={len(rep['structural'])}  "
+          f"semantic_errors={len(rep['semantic'])}  grounding_unsupported={len(ungrounded)}  "
+          f"declared_exceptions={len(quality['declared'])}  undeclared={len(quality['undeclared'])}")
+    for e in rep["structural"][:20] + quality["declared"] + quality["undeclared"][:20]:
+        print("  ", e)
+    if rep["structural"] or quality["undeclared"]:
         return 1
     if args.promote:
         tmp = ROOT / "output.csv.tmp"
