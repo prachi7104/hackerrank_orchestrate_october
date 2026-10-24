@@ -279,3 +279,16 @@ are uncited and leave status unchanged; R2 abstains on several accounts and on a
 names to another person (this test caught a bug: the first R2 ignored later-file owners; fixed).
 Decision: **pending Prachi** — both relax the file-capture rule for uncited planning steps only;
 flags committed off.
+
+### R3 — admissible support for the R1/R2 resources (E24)
+Prachi did not enable R1/R2: AGENTS.md §§6.2/6.5 forbid information unavailable by `audit_at`, and an
+uncited future check still depends on the evidence that identified its resource. R3 re-examined the
+167 resource–case pairs behind the 116 changed rows using only files captured at or before
+`audit_at` and activity at or before it: 116 audit records — no admissible mention at all; 49
+accounts and 2 legal holds — mentioned only by deletion-worker activity, which never names the
+subject. **0 rows eligible**; nothing implemented. R1/R2 stay off. This ends the record-time line.
+
+`exp/accuracy` at 60b6008 (C1 on, every other experiment flag off) regenerates the evaluation
+output byte-identically to the frozen release (sha256 aead4424…f767c, 0 provider requests). Its only
+differences from `final-src` are sample-level: C1 (+case_12), the diagnosis and experiment tooling,
+and 35 tests.
