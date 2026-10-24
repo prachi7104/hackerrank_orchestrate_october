@@ -292,3 +292,10 @@ subject. **0 rows eligible**; nothing implemented. R1/R2 stay off. This ends the
 output byte-identically to the frozen release (sha256 aead4424…f767c, 0 provider requests). Its only
 differences from `final-src` are sample-level: C1 (+case_12), the diagnosis and experiment tooling,
 and 35 tests.
+
+### E25 — release 2 (25 Oct 00:41 IST)
+Source `final-src-2` = 26dd288 (C1 the only enabled behavioural change; all other experiment flags
+off; one determinism fix: anchor ties broken by event time then activity id instead of input order).
+Final run `20261024T191056Z-9f3268`, reproduction `20261024T191058Z-7b1bdb`: output sha256
+aead4424…f767c, identical to release 1; 0 provider requests. Samples (full path): status 0.906,
+exact 11/32, step P/R/F1 1.000 / 0.834 / 0.910, resource recall 0.712.

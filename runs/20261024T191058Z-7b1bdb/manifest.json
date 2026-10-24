@@ -1,0 +1,124 @@
+{
+ "run_id": "20261024T191058Z-7b1bdb",
+ "final": false,
+ "model": "gemini-3.5-flash-lite",
+ "git": {
+  "commit": "26dd288692b8dc64bad6b80d2a5975a37790ee96",
+  "dirty": false
+ },
+ "inputs": {
+  "deletion_requests.csv": "7505a4d31e6fb35d77280c55b224290c5ebb2dd1ce21019222a5f190454bbb2d",
+  "deletion_rules.csv": "17332f5566e776d2f7bcff36e93cf23c9d8594dc2ff1e9c247ad2614539dc40f",
+  "evidence_files.csv": "bcb1d0b909dfe2b29dd461f9d7e90d8a031803de21858d5f18f52c771ab0d614",
+  "output.csv": "fbba9aeb583d359e67d241bec0f8a2b09f31d66df0b1773e13999a94381533bf",
+  "sample_deletion_requests.csv": "b3802bdb242ab4869d84191a6c0d3f7d1601afbc6114833f9184c323d319c7e6",
+  "sample_output.csv": "72ef6b14f504a72a674deefad08c66e397f8d8c05bd23d9791e41db6ef184d91",
+  "system_activity.csv": "ba1bdcceb92bc5b358821a8589a98269518f9b3ba38adb08700c8351b888cbb2",
+  "user_audit_log.csv": "839cf36efdc6719bd3a55ccd0438f88ca81e2cbee246d34ee6ebde4f6d826221",
+  "user_identities.csv": "66e40cede4149e1b8344ab712f7afeea9c492e4e521dbc3014dfe267cd65c9d5"
+ },
+ "output_sha256": "aead44244a9a08131f7cb29c960b372188dbaa7804b1d314ea1a53651f3f767c",
+ "rows": 518,
+ "usage": {
+  "attempts": 0,
+  "failed_attempts": 0,
+  "cache_hits": 60,
+  "input": 0,
+  "output": 0,
+  "thinking": 0,
+  "total": 0,
+  "unknown_token_fields": 0,
+  "latency_s": 0.0
+ },
+ "structural_errors": 0,
+ "semantic_errors": 1,
+ "grounding_unsupported": 1,
+ "declared_exceptions": [
+  "case_63: INCOMPLETE without findings",
+  "case_55: REPORT_RESTORE_RISK backup_9287 cites evidence_32: evidence_32 does not show the state ACTIVE"
+ ],
+ "undeclared_issues": [],
+ "evidence_gaps": {
+  "case_55": {
+   "policy": "RESTORE_INFERRED",
+   "inferences": [
+    {
+     "resource_id": "backup_9287",
+     "evidence_id": "evidence_32",
+     "basis": "archive of the subject shown existing; platform restore capability printed on the same screen: backup_9286 restored - Completed; backup_9281 restored - Completed",
+     "not_proven": "restore access of this specific archive"
+    }
+   ]
+  },
+  "case_63": {
+   "policy": "UNRESOLVED_EVIDENCE",
+   "contract_exception": true,
+   "unknown_state": [],
+   "linked": [],
+   "excluded_as_contradicted": {
+    "marketing_001": "records name ['sj.park@naver.com'] but never the subject"
+   }
+  }
+ },
+ "investigations": {
+  "case_46": {
+   "requests": 4,
+   "changed_output": false,
+   "error": ""
+  },
+  "case_63": {
+   "requests": 4,
+   "changed_output": false,
+   "error": ""
+  }
+ },
+ "noncompliant_fallback": {
+  "mode": "incomplete-empty",
+  "approval": "Prachi Agarwalla, 2026-10-24 23:20 IST (chat approval; semantic contract exception)",
+  "approved_cases": [
+   "case_63"
+  ],
+  "rows": {
+   "case_63": {
+    "written_as": "INCOMPLETE",
+    "decision_status": "UNRESOLVED_EVIDENCE",
+    "gap": {
+     "policy": "UNRESOLVED_EVIDENCE",
+     "contract_exception": true,
+     "unknown_state": [],
+     "linked": [],
+     "excluded_as_contradicted": {
+      "marketing_001": "records name ['sj.park@naver.com'] but never the subject"
+     }
+    },
+    "investigation": {
+     "verdicts": [
+      {
+       "question_id": "Q2",
+       "outcome": "RESOLVED",
+       "answer": "OTHER",
+       "accepted": true,
+       "why": "record content names someone else",
+       "supporting_units": [
+        "evidence_60#marketing_001#screen record marketing_001"
+       ],
+       "reason": "The actual record content contains sj.park@naver.com and belongs to Soo-jin Park, while the data catalog link is merely a workflow claim and not authoritative for record ownership against direct evidence."
+      },
+      {
+       "question_id": "Q3",
+       "outcome": "RESOLVED",
+       "answer": "marketing_001|PRESENT",
+       "accepted": false,
+       "why": "marketing_001 is not tied to the subject without contradiction",
+       "supporting_units": [
+        "evidence_60#marketing_001#screen record marketing_001"
+       ],
+       "reason": "The screenshot and read_resource evidence show marketing_001 is present at the audit time after the request."
+      }
+     ],
+     "requests": 4
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,128 @@
+{
+ "release": "Ghost Data Still Exists — release 2",
+ "supersedes": {
+  "tag": "final-src",
+  "commit": "7e257246a43dda29a0ed8d67a7bdb335f08eaa5c",
+  "artifacts_tag": "final-artifacts",
+  "output_sha256_identical": true
+ },
+ "source": {
+  "tag": "final-src-2",
+  "commit": "26dd288692b8dc64bad6b80d2a5975a37790ee96",
+  "tree": "7367579d2176bc757ee8cb3a21f9277d3004de81",
+  "changes_since_release_1": "C1 hashed-identifier rule (enabled); experiment tooling and tests; all other experiment flags disabled; anchor tie-break determinism",
+  "note": "reports and artifacts were generated after this commit and are bound here by hash"
+ },
+ "configuration": {
+  "model": "gemini-3.5-flash-lite",
+  "provider": "Google Gemini Developer API (free tier)",
+  "prompt_versions": {
+   "request_authorization": "authz-v1",
+   "screenshot_extraction": "shot-v1",
+   "restore_lines": "restore-v1",
+   "investigator": "inv-v2",
+   "screenshot_question": "screen-q-v1"
+  },
+  "account_policy": "D",
+  "enabled_experiments": [
+   "C1 SECONDARY_ID_RULE"
+  ],
+  "disabled_experiments": [
+   "X1",
+   "X2",
+   "A1 PROPAGATE",
+   "A2 STATUS_FILTER",
+   "A3 CITE_INFERRED",
+   "A4 ORDINAL",
+   "A4b ORDINAL_SAME_STREAM",
+   "R1 RETAINED_FUTURE_CHECK",
+   "R2 ACCOUNT_FUTURE_CHECK"
+  ],
+  "visibility": "strict: file captured_at <= audit_at; state observed >= requested_at",
+  "fallback": "incomplete-empty",
+  "fallback_cases": [
+   "case_63"
+  ],
+  "fallback_approval": "Prachi Agarwalla, 2026-10-24 23:20 IST (chat approval; semantic contract exception)"
+ },
+ "inputs": {
+  "deletion_requests.csv": "7505a4d31e6fb35d77280c55b224290c5ebb2dd1ce21019222a5f190454bbb2d",
+  "deletion_rules.csv": "17332f5566e776d2f7bcff36e93cf23c9d8594dc2ff1e9c247ad2614539dc40f",
+  "evidence_files.csv": "bcb1d0b909dfe2b29dd461f9d7e90d8a031803de21858d5f18f52c771ab0d614",
+  "output.csv": "fbba9aeb583d359e67d241bec0f8a2b09f31d66df0b1773e13999a94381533bf",
+  "sample_deletion_requests.csv": "b3802bdb242ab4869d84191a6c0d3f7d1601afbc6114833f9184c323d319c7e6",
+  "sample_output.csv": "72ef6b14f504a72a674deefad08c66e397f8d8c05bd23d9791e41db6ef184d91",
+  "system_activity.csv": "ba1bdcceb92bc5b358821a8589a98269518f9b3ba38adb08700c8351b888cbb2",
+  "user_audit_log.csv": "839cf36efdc6719bd3a55ccd0438f88ca81e2cbee246d34ee6ebde4f6d826221",
+  "user_identities.csv": "66e40cede4149e1b8344ab712f7afeea9c492e4e521dbc3014dfe267cd65c9d5",
+  "dataset/evidence/** (94 files, sha256 of per-file digests)": "90bc1c632fddd65eab41b5c1283e2659da85860c39159069dd5e7c8e9d771215"
+ },
+ "runs": {
+  "final": "20261024T191056Z-9f3268",
+  "reproduction": "20261024T191058Z-7b1bdb",
+  "output_sha256": "aead44244a9a08131f7cb29c960b372188dbaa7804b1d314ea1a53651f3f767c",
+  "reproduction_identical": true,
+  "provider_requests_in_final_run": 0,
+  "cached_responses_reused": 60
+ },
+ "validation": {
+  "structural_errors": 0,
+  "semantic_errors": 1,
+  "grounding_unsupported": 1,
+  "declared_exceptions": [
+   "case_63: INCOMPLETE without findings",
+   "case_55: REPORT_RESTORE_RISK backup_9287 cites evidence_32: evidence_32 does not show the state ACTIVE"
+  ],
+  "undeclared_issues": []
+ },
+ "exceptions": {
+  "case_63": "UNRESOLVED_EVIDENCE serialised as INCOMPLETE with [] under explicit approval; marketing_001 excluded (evidence_60 names sj.park@naver.com; only activity_4008 links it to the requester); semantic contract exception, not a successful audit",
+  "case_55": "RESTORE_INFERRED: restore risk on backup_9287 citing evidence_32; restore access of this archive not shown; grounding reports the citation unsupported"
+ },
+ "artifacts": {
+  "output.csv": {
+   "sha256": "aead44244a9a08131f7cb29c960b372188dbaa7804b1d314ea1a53651f3f767c",
+   "bytes": 541521
+  },
+  "code.zip": {
+   "sha256": "486d44a20b5bf1ce0ef3fe4f1772a1d19372bcab60bd83e55f4463560aa53339",
+   "bytes": 113818
+  },
+  "code/evaluation/evaluation_report.md": {
+   "sha256": "89ef319fa612af96ffe0fc9b5c532febcf5d933271d5927b603d9d9bf2ba63a1",
+   "bytes": 11998
+  },
+  "code/evaluation/usage_report.md": {
+   "sha256": "3163b06ee053176d175115e6185b737dd5203a8486fdd385fe7201f376d484cb",
+   "bytes": 2759
+  },
+  "code/evaluation/experiments.md": {
+   "sha256": "a1d7397c948cc5a6ad1a85bb2f2dc3950d8d554c8f6b6747013282791fe641f7",
+   "bytes": 26248
+  },
+  "runs/20261024T191056Z-9f3268/output.csv": {
+   "sha256": "aead44244a9a08131f7cb29c960b372188dbaa7804b1d314ea1a53651f3f767c",
+   "bytes": 541521
+  },
+  "runs/20261024T191056Z-9f3268/manifest.json": {
+   "sha256": "de227514ce0614a17e50485ba8e39d0c446c1ba069d9f1f9349ea7e38cd2183e",
+   "bytes": 4183
+  },
+  "runs/20261024T191056Z-9f3268/diagnostics.md": {
+   "sha256": "d63180c4758f510a9a9302e846b6d6f0b273b01ad9edb3e1098072ac68777334",
+   "bytes": 3633
+  },
+  "runs/20261024T191056Z-9f3268/traces.jsonl": {
+   "sha256": "87a0299075522944a50314b91e81450188dfcdef8071212f2fd4bd49bb602696",
+   "bytes": 668604
+  },
+  "runs/20261024T191056Z-9f3268/sample_evaluation.json": {
+   "sha256": "ebd01d65c32791d9656537669a4b5c8d3025c33b1771c6dd5b5be129f3fe5e5e",
+   "bytes": 68762
+  },
+  "runs/20261024T191056Z-9f3268/sample_evaluation_no_investigator.json": {
+   "sha256": "ef4fd32608d72fc89ae914e3cc9cfc4a82b27460cd140d75858a2ed9596e6efb",
+   "bytes": 62934
+  }
+ }
+}
