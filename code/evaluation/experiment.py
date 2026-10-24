@@ -27,8 +27,9 @@ HAND = {f"case_{i:02d}" for i in range(1, 11)}
 FINAL = ROOT.parent / "hackerrank-orchestrate-october26" / "runs/20261024T175408Z-427c28/output.csv"  # frozen release (main checkout)
 VARIANTS = {   # first entry is the comparison baseline
     "exp/accuracy (C1)": {"SECONDARY_ID_RULE": True},
-    "A4 ordinal alignment": {"SECONDARY_ID_RULE": True, "ORDINAL": True},
-    "A4b ordinal, same operation stream": {"SECONDARY_ID_RULE": True, "ORDINAL": True, "ORDINAL_SAME_STREAM": True},
+    "R1 retained future checks": {"SECONDARY_ID_RULE": True, "RETAINED_FUTURE_CHECK": True},
+    "R2 record-time account future checks": {"SECONDARY_ID_RULE": True, "ACCOUNT_FUTURE_CHECK": True},
+    "R1+R2": {"SECONDARY_ID_RULE": True, "RETAINED_FUTURE_CHECK": True, "ACCOUNT_FUTURE_CHECK": True},
 }
 LINK_FLAGS = {"PROPAGATE", "STATUS_FILTER", "ORDINAL", "ORDINAL_SAME_STREAM"}
 
@@ -40,6 +41,8 @@ def set_flags(flags):
     linking.ORDINAL_SAME_STREAM = flags.get("ORDINAL_SAME_STREAM", False)
     core.CITE_INFERRED = flags.get("CITE_INFERRED", False)
     core.SECONDARY_ID_RULE = flags.get("SECONDARY_ID_RULE", False)
+    core.RETAINED_FUTURE_CHECK = flags.get("RETAINED_FUTURE_CHECK", False)
+    core.ACCOUNT_FUTURE_CHECK = flags.get("ACCOUNT_FUTURE_CHECK", False)
 
 
 def identity(ctx, gold):

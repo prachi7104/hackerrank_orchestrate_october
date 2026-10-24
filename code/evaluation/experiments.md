@@ -240,3 +240,42 @@ timestamps (abstain), decoy deletion (abstain), missing deletion (abstain), retr
 Decision: **REVERT** both (flags off). A4 makes demonstrably wrong matches and would change 73
 submitted rows at a sample error rate of 1 in 3; A4b is safe on the tests but changes no submitted
 row, so its only effect is a sample score that rests on a post-hoc constraint.
+
+### Evaluation-impact inventory and R1/R2 (E23)
+Inventory over the 518 evaluation rows (frozen output, no engine change):
+- Cross-record joins: no record content names another resource id (0 candidates). Sync/restore
+  repopulation: 29 downstream resources of subject flows/backups, all already linked.
+- Per-system step presence vs the generated samples' answers: INCOMPLETE rows carry an audit-record
+  check in 42% of rows (answers: 100%); COMPLETE rows carry an account check in 34% (100%) and an
+  anonymised-analytics check in 0% (83%).
+- The 207 INCOMPLETE rows without an audit-record check: 123 have the subject's audit record only in
+  files exported after `audit_at`, 83 in no file, 1 only before the request. 116 of those records
+  carry a record time inside [requested_at, audit_at].
+- 319 deletion rows lack an account step (217 INCOMPLETE, 101 COMPLETE, 1 unresolved).
+
+R1 (`core.RETAINED_FUTURE_CHECK`): a retained-category record (security audit, legal hold) of the
+subject found only in a later-exported file, with record time in [requested_at, audit_at], adds an
+**uncited** post-remediation `VERIFY_RECORD_PRESENT` in an INCOMPLETE case. Never used for state,
+citations, status or COMPLETE rows.
+R2 (`core.ACCOUNT_FUTURE_CHECK`): the same kind of record for an account carrying a subject
+identifier (and no record naming anyone else) adds an uncited `VERIFY_RECORD_ABSENT` when the case
+has no account step and exactly one such account exists.
+
+| Variant | exact (hand/gen) | P / R / F1 | res-recall | wins / losses | eval rows changed | status flips |
+|---|---|---|---|---|---|---|
+| exp/accuracy C1, deterministic | 11 (3/8) | 0.994 / 0.819 / 0.898 | 0.712 | — | — | — |
+| R1 | 13 (3/10) | 0.994 / 0.845 / 0.913 | 0.757 | +24, +30 / none | 116 | 0 |
+| R2 | 11 (3/8) | 0.994 / 0.824 / 0.901 | 0.721 | none (1 correct account step, case_09) | 45 | 0 |
+| R1+R2 | 14 (4/10) | 0.994 / 0.850 / 0.916 | 0.766 | +09, +24, +30 / none | 116 | 0 |
+| full shared path C1 | 11 | 1.000 / 0.834 / 0.910 | 0.712 | — | — | — |
+| full shared path C1+R1+R2 | **14** | **1.000 / 0.865 / 0.928** | 0.766 | +09, +24, +30 / none | 116 | 0 |
+
+Evaluation diff (R1+R2): 116 rows, only additions, all uncited verification steps: 116
+`VERIFY_RECORD_PRESENT` security_service, 2 legal_service, 45 `VERIFY_RECORD_ABSENT` account_service;
+no removals, no status change, no new citations. Remaining sample misses for audit records: only the
+two that appear in no file. Adversarial tests (`tests/test_record_time.py`): record time before the
+request or after the audit excluded; non-retained categories and in-time files excluded; added steps
+are uncited and leave status unchanged; R2 abstains on several accounts and on an account any record
+names to another person (this test caught a bug: the first R2 ignored later-file owners; fixed).
+Decision: **pending Prachi** — both relax the file-capture rule for uncited planning steps only;
+flags committed off.

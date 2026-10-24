@@ -42,6 +42,8 @@ SYSTEM_CATEGORY = {
 #      used only for uncited post-remediation checks; otherwise UNRESOLVED
 ACCOUNT_POLICY = "D"
 CITE_INFERRED = False      # experiment A3: an inferred primary account is assessed and cited like a linked one
+ACCOUNT_FUTURE_CHECK = False    # experiment R2: record-time account evidence may add an uncited future absence check
+RETAINED_FUTURE_CHECK = False   # experiment R1: record-time evidence may add uncited future checks of retained records
 SECONDARY_ID_RULE = True   # experiment C1 (KEPT, E21): a record whose only content is a hashed identifier is SECONDARY_IDENTIFIER
 EMAIL_FIELDS = ("email", "requester_email", "customer_email", "owner_email")
 # Categories whose state may be taken from captures made before requested_at (development
@@ -257,6 +259,45 @@ def subject_absence(ctx: AuditContext, case: dict, rid: str) -> str:
     return best
 
 
+def retained_future_checks(ctx: AuditContext, case: dict, already: set) -> list[str]:
+    """R1 (experiment): retained-category records (security audit, legal hold) of the subject that
+    appear only in files exported after audit_at, but whose own record time lies between requested_at
+    and audit_at. Used solely to plan an uncited post-remediation VERIFY_RECORD_PRESENT in an
+    INCOMPLETE case; never for state, citations or status."""
+    keys = ctx.subjects[case["case_id"]].link_keys()
+    found = set()
+    for k in keys:
+        for o in ctx.by_key.get(k, []):
+            if o.resource_id in already or o.captured_at <= case["audit_at"]:
+                continue
+            if not (case["requested_at"] <= o.observed_at <= case["audit_at"]):
+                continue
+            cat = o.category or SYSTEM_CATEGORY.get(o.system_id)
+            if ctx.rules.get(cat, {}).get("required_action") == "RETAIN" and o.exists:
+                found.add(o.resource_id)
+    return sorted(found)
+
+
+def record_time_accounts(ctx: AuditContext, case: dict) -> list[str]:
+    """R2 (experiment): accounts carrying a subject identifier in records whose own time lies between
+    requested_at and audit_at inside files exported after audit_at, and not tied to another person."""
+    keys = ctx.subjects[case["case_id"]].link_keys()
+    mine = ctx.subjects[case["case_id"]].user_ids
+    usable = lambda o: o.observed_at <= case["audit_at"] and (o.captured_at <= case["audit_at"] or o.observed_at >= case["requested_at"])
+
+    def foreign(rid):   # any usable record of this account naming another person, in either kind of file
+        owners = {ctx.owner_of_key[k] for o in ctx.by_resource.get(rid, []) if usable(o)
+                  for k in o.keys() if k in ctx.owner_of_key}
+        return bool(owners - mine)
+
+    found = set()
+    for k in keys:
+        for o in ctx.by_key.get(k, []):
+            if o.resource_id.startswith("account_") and o.captured_at > case["audit_at"]                     and case["requested_at"] <= o.observed_at <= case["audit_at"] and not foreign(o.resource_id):
+                found.add(o.resource_id)
+    return sorted(found)
+
+
 def evidence_gap(ctx: AuditContext, case: dict, assessments: list, links: dict, excluded: dict):
     """Evidence-gap policy for an authorised deletion with no provable resource state.
 
@@ -370,6 +411,13 @@ def audit_case(ctx: AuditContext, case: dict, authorizes_deletion: bool, overrid
         for a in assessments:
             if a.resource_id == primary and a.state == "UNKNOWN":
                 verify_after.append(Step("VERIFY_RECORD_ABSENT", "account_service", a.resource_id))
+        if RETAINED_FUTURE_CHECK:
+            for rid in retained_future_checks(ctx, case, {a.resource_id for a in assessments}):
+                verify_after.append(Step("VERIFY_RECORD_PRESENT", system_for(rid), rid))
+        if ACCOUNT_FUTURE_CHECK and not future_only and not any(a.system_id == "account_service" for a in assessments):
+            rec = record_time_accounts(ctx, case)
+            if len(rec) == 1:
+                verify_after.append(Step("VERIFY_RECORD_ABSENT", "account_service", rec[0]))
         # An inferred primary account appears only as an uncited future check, never as a finding
         # or a cited verification, and only when no evidenced account step exists already.
         if future_only and not any(a.system_id == "account_service" for a in assessments):
