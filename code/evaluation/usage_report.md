@@ -1,6 +1,6 @@
 # Usage report
 
-Generated from `code/.cache/ledger.jsonl` for run `20261024T191056Z-9f3268`, the run that produced the submitted `output.csv` (518 requests in `dataset/deletion_requests.csv`).
+Generated from `code/.cache/ledger.jsonl` for run `20261024T200014Z-4a5374`, the run that produced the submitted `output.csv` (518 requests in `dataset/deletion_requests.csv`).
 
 - Provider: Google Gemini Developer API, free tier (no billing account, no paid features).
 - Model requested: gemini-3.5-flash-lite; model versions returned: gemini-3.5-flash-lite.

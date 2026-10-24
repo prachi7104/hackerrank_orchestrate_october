@@ -405,3 +405,18 @@ future-stamp, identity-reuse).
 
 Conclusion: no evaluation-only pattern found a wrong decision; one parser defect (P1) produced wrong
 links that never reached the output. The submitted output is unchanged.
+
+### E28 — release 3 (25 Oct ~01:30 IST)
+Approved by Prachi (IR-30) as a correctness and safety fix, not a score change. Source `final-src-3` =
+bb11d74: release 2 plus P1 (`evidence.PDF_SUBJECT_SCOPE`, enabled). Source-diff audit against
+`final-src-2`: production code changes are P1 in `evidence.py` and the B1 code in `core.py`, which is
+inert (`BATCH_ATTRIBUTION = ""`; its function is never called). Every other flag is unchanged
+(policy D, C1 on; X1, X2, A1–A4b, R1, R2, B1 off). Tests: 40 pass (5 new P1 regression tests).
+Final run `20261024T200014Z-4a5374` (promoted) and reproduction `20261024T200016Z-9a444f`: output
+sha256 aead4424…f767c, identical to releases 1 and 2; 0 provider requests (60 cached responses).
+Structural 0, semantic 1 (case_63, approved exception), grounding 1 unsupported (case_55, declared).
+Samples (full path): status 0.906, exact 11/32, step P/R/F1 1.000 / 0.834 / 0.910, resource recall
+0.712; without the investigator status 0.875, F1 0.898. Sample traces lose the wrong `tombstone_17`
+link for case_08, 12, 21, 24 and 29. Noted risk (pre-existing, trace only): the provenance note on a
+link names whichever matching key or file a set yields first, which varies between processes; runs
+of the same source differ in 40–44 trace lines and never in output.

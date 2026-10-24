@@ -1,9 +1,10 @@
 # Evaluation report
 
-> **Release 2, generated 25 Oct 00:41 IST from source tag `final-src-2` (26dd288).** Sample numbers
+> **Release 3, generated 25 Oct 01:30 IST from source tag `final-src-3` (bb11d74).** Sample numbers
 > were reproduced from cache with 0 provider requests; the evaluation-set output is
-> `runs/20261024T191056Z-9f3268` and is **byte-identical to release 1** (`final-src`): the changes
-> since release 1 improve sample-level correctness and tooling only (§6).
+> `runs/20261024T200014Z-4a5374` and is **byte-identical to releases 1 and 2**. Release 3 adds one
+> correctness and safety fix (P1: PDF identifiers no longer leak between people); it is not an
+> accuracy improvement (§6).
 
 All numbers are **development measurements on the 32 public samples** (`sample_output.csv`), which
 were also used to design the engine. They are not an estimate of hidden-test accuracy. The
@@ -44,6 +45,7 @@ strict time rule). A full decomposition is in §6.
 | 4 | **Temporal-rule variants** (`temporal_check.py`): post-request state rule vs exempting persistent categories vs no rule | sample answers | rule 13/32, exemption 12/32, none 11/32 exact (at the time) | only two samples discriminate |
 | 5 | **Citation grounding** (`grounding.py`) over all 550 rows: does each cited file show the resource, the state, a subject link and a capture time ≤ `audit_at`? | the evidence table | samples 59/59 supported; evaluation 1,033/1,034 (the exception is §4, case_55) | checks what the evidence says, not the hidden answer |
 | 6 | **Adversarial ordering and timing tests** (`tests/test_ordinal.py`, `tests/test_record_time.py`, `tests/test_experiments.py`): shuffled file order, equal timestamps, decoy and missing worker events, retries, mixed operation streams, plausible outsiders, record times outside the request window, the `audit_at` boundary at one second, unrelated-subject evidence | rule stated in each test | all pass | synthetic perturbations |
+| 7 | **Multi-person document tests** (`tests/test_pdf_scope.py`): a register listing several people, a user-id alias, a non-user alias inside a register, a single-person statement | rule stated in each test | all pass; the alias defect reproduces with the fix disabled | synthetic text layers |
 
 ## 3. Failures found and improvements made
 
@@ -64,6 +66,7 @@ keep/revert* (details in `experiments.md`).
 | blanket INCOMPLETE `[]` for cases without evidence | rejected; kept as internal `UNRESOLVED_EVIDENCE` | status 0.969 → 0.875 would have been the cost | reverted |
 | investigator only in pilot scripts | investigator in the shared run path for treatment / conflict / no-evidence questions | status 0.875 → 0.906, F1 0.881 → 0.893 | kept |
 | case_12: a record keyed only by a hashed historical email was treated as an analytics profile (ANONYMIZE) | a record whose only content is a hashed identifier is a SECONDARY_IDENTIFIER (rule_02, DELETE) — C1 | exact 10 → 11, precision 0.981 → 1.000; 0 evaluation rows change | kept |
+| a multi-person PDF register gave every record it named all six people's references, and a user-id catalog alias (`user_17`) counted as naming `tombstone_17`, linking it to six requests (coverage audit) | P1: a user id names a person, not a record; in a document listing several people a record carries only the identifiers on its own lines | 6 wrong sample links removed; 0 evaluation links or output rows change; samples unchanged | kept (correctness, not score) |
 | reproducibility review: the investigator turned evaluation case_46's tombstone into DELETE, contradicting rule_15 (tombstones are redacted); the verifier only checked that the cited unit concerned the record | a treatment answer must be a `deletion_rules.csv` action for a category the record's system can hold | case_46 back to REDACT verification; samples unchanged (case_10's DELETE remains valid: support records can be attachments) | kept |
 
 ## 4. Known limitations and open exceptions
@@ -89,7 +92,7 @@ keep/revert* (details in `experiments.md`).
   at a measured cost on the samples.
 - **Small development set.** 32 labelled cases, 10 of them handcrafted with different conventions.
 
-## 5. Evaluation-set output (`runs/20261024T191056Z-9f3268`)
+## 5. Evaluation-set output (`runs/20261024T200014Z-4a5374`)
 
 No answer key exists for these 518 rows; this section reports validation, not accuracy.
 
@@ -98,7 +101,7 @@ No answer key exists for these 518 rows; this section reports validation, not ac
 | Structural validation (`validate.py`) | 0 errors: 518 rows, ids, numeric order, schema, numbering, evidence ids, `audit_at` boundary |
 | Semantic validation | **1 error** — case_63 `INCOMPLETE` without findings (approved exception above) |
 | Citation grounding | 1,033 cited steps supported, **1 unsupported** — case_55 inferred restore risk |
-| Reproducibility | regenerated from the clean `final-src-2` tag and once more: identical output hash (`aead4424…`, the same as release 1), 0 provider requests |
+| Reproducibility | regenerated from the clean `final-src-3` tag and once more (`20261024T200016Z-9a444f`): identical output hash (`aead4424…`, the same as releases 1 and 2), 0 provider requests. Trace text is not byte-stable: when several files link one record, the provenance note may name a different file or key between runs; decisions and output are unaffected |
 | Status (decision) | 354 INCOMPLETE, 153 COMPLETE, 10 NOT_APPLICABLE, 1 UNRESOLVED_EVIDENCE (written as INCOMPLETE) |
 | Investigator | case_46 (treatment; answer rejected by verification) and case_63 (conflict resolved OTHER; no-evidence abstained) |
 | Model usage | see `usage_report.md` (₹0, free tier; cached responses attributed to the runs that made them) |
@@ -121,4 +124,14 @@ improvements (details and every number in `experiments.md`, E21–E24).
   would have added uncited future checks to 116 evaluation rows from files exported after
   `audit_at` (rejected under AGENTS.md §§6.2 and 6.5; a re-check with admissible evidence only found
   0 eligible rows).
-- **Effect on the submission:** none. The evaluation-set output is identical to release 1.
+- **Batch attribution (B1, reverted):** treating an audit readback export as a closed per-batch
+  snapshot gained nothing on the samples, its one attribution was wrong, and citing it changed 20
+  evaluation rows with 22 unsupported citations; a stricter elimination variant made no assignment.
+  With the gold resource set substituted (diagnostic only) 23/32 samples are exact, so the remaining
+  loss is resource identification under the evidence rules, not treatment, state, ordering or citation.
+- **Evaluation-only coverage audit (E27):** evaluation rows draw state from formats the samples never
+  use (database replicas, lookup exports and logs, screenshots), records stamped after `audit_at`, and
+  COMPLETE decisions resting on a retained audit record. Each was checked against the raw evidence;
+  one parser defect was found and fixed (P1, above). No other wrong decision was demonstrated, which
+  is not the same as showing none remains: exact match on the samples is 11/32.
+- **Effect on the submission:** none. The evaluation-set output is identical to releases 1 and 2.

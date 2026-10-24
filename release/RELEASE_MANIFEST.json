@@ -1,16 +1,17 @@
 {
- "release": "Ghost Data Still Exists — release 2",
+ "release": "Ghost Data Still Exists — release 3",
  "supersedes": {
-  "tag": "final-src",
-  "commit": "7e257246a43dda29a0ed8d67a7bdb335f08eaa5c",
-  "artifacts_tag": "final-artifacts",
-  "output_sha256_identical": true
- },
- "source": {
   "tag": "final-src-2",
   "commit": "26dd288692b8dc64bad6b80d2a5975a37790ee96",
-  "tree": "7367579d2176bc757ee8cb3a21f9277d3004de81",
-  "changes_since_release_1": "C1 hashed-identifier rule (enabled); experiment tooling and tests; all other experiment flags disabled; anchor tie-break determinism",
+  "artifacts_tag": "final-artifacts-2",
+  "output_sha256_identical": true,
+  "rollback": "release 2 (final-src-2 / final-artifacts-2) remains the rollback"
+ },
+ "source": {
+  "tag": "final-src-3",
+  "commit": "bb11d74095403383ae831aeedc616c00e79e8e7e",
+  "tree": "82613f7ae5f274f8228dd1b4fd7a43bebe3c7163",
+  "changes_since_release_2": "P1 subject-scoped PDF identifiers (enabled; correctness and safety fix, not a score change); B1 batch attribution code present but disabled; experiment tooling, 5 regression tests",
   "note": "reports and artifacts were generated after this commit and are bound here by hash"
  },
  "configuration": {
@@ -25,7 +26,8 @@
   },
   "account_policy": "D",
   "enabled_experiments": [
-   "C1 SECONDARY_ID_RULE"
+   "C1 SECONDARY_ID_RULE",
+   "P1 PDF_SUBJECT_SCOPE"
   ],
   "disabled_experiments": [
    "X1",
@@ -36,7 +38,8 @@
    "A4 ORDINAL",
    "A4b ORDINAL_SAME_STREAM",
    "R1 RETAINED_FUTURE_CHECK",
-   "R2 ACCOUNT_FUTURE_CHECK"
+   "R2 ACCOUNT_FUTURE_CHECK",
+   "B1 BATCH_ATTRIBUTION"
   ],
   "visibility": "strict: file captured_at <= audit_at; state observed >= requested_at",
   "fallback": "incomplete-empty",
@@ -58,12 +61,13 @@
   "dataset/evidence/** (94 files, sha256 of per-file digests)": "90bc1c632fddd65eab41b5c1283e2659da85860c39159069dd5e7c8e9d771215"
  },
  "runs": {
-  "final": "20261024T191056Z-9f3268",
-  "reproduction": "20261024T191058Z-7b1bdb",
+  "final": "20261024T200014Z-4a5374",
+  "reproduction": "20261024T200016Z-9a444f",
   "output_sha256": "aead44244a9a08131f7cb29c960b372188dbaa7804b1d314ea1a53651f3f767c",
   "reproduction_identical": true,
   "provider_requests_in_final_run": 0,
-  "cached_responses_reused": 60
+  "cached_responses_reused": 60,
+  "trace_note": "trace provenance text is not byte-stable between runs (which matching key/file is named); decisions and output are"
  },
  "validation": {
   "structural_errors": 0,
@@ -79,50 +83,63 @@
   "case_63": "UNRESOLVED_EVIDENCE serialised as INCOMPLETE with [] under explicit approval; marketing_001 excluded (evidence_60 names sj.park@naver.com; only activity_4008 links it to the requester); semantic contract exception, not a successful audit",
   "case_55": "RESTORE_INFERRED: restore risk on backup_9287 citing evidence_32; restore access of this archive not shown; grounding reports the citation unsupported"
  },
+ "tests": {
+  "count": 40,
+  "passed": 40,
+  "clean_install": "code.zip under Python 3.10.9 in a path with spaces: 40 passed"
+ },
  "artifacts": {
   "output.csv": {
    "sha256": "aead44244a9a08131f7cb29c960b372188dbaa7804b1d314ea1a53651f3f767c",
    "bytes": 541521
   },
   "code.zip": {
-   "sha256": "486d44a20b5bf1ce0ef3fe4f1772a1d19372bcab60bd83e55f4463560aa53339",
-   "bytes": 113818
+   "sha256": "0fae0ef6e7032c65f085715e714fe2d684af2265d5e9115e3ad2baf6ebd34fba",
+   "bytes": 121781
   },
   "code/evaluation/evaluation_report.md": {
-   "sha256": "89ef319fa612af96ffe0fc9b5c532febcf5d933271d5927b603d9d9bf2ba63a1",
-   "bytes": 11998
+   "sha256": "de1f93a053e900101a3a05bf008f902554c3cb3fc0f38cf9e362850c4a4e630e",
+   "bytes": 14023
   },
   "code/evaluation/usage_report.md": {
-   "sha256": "3163b06ee053176d175115e6185b737dd5203a8486fdd385fe7201f376d484cb",
+   "sha256": "5063e13534e6f688673a06d711eb2582488511ddbcba987472f6ed26cab66a86",
    "bytes": 2759
   },
   "code/evaluation/experiments.md": {
-   "sha256": "a1d7397c948cc5a6ad1a85bb2f2dc3950d8d554c8f6b6747013282791fe641f7",
-   "bytes": 26248
+   "sha256": "d5a0ea5e6ab2988fa332d40e9a83664c6ff4abd62b0d0cbd9336f59f87fc3d3a",
+   "bytes": 36689
   },
-  "runs/20261024T191056Z-9f3268/output.csv": {
+  "runs/20261024T200014Z-4a5374/output.csv": {
    "sha256": "aead44244a9a08131f7cb29c960b372188dbaa7804b1d314ea1a53651f3f767c",
    "bytes": 541521
   },
-  "runs/20261024T191056Z-9f3268/manifest.json": {
-   "sha256": "de227514ce0614a17e50485ba8e39d0c446c1ba069d9f1f9349ea7e38cd2183e",
+  "runs/20261024T200014Z-4a5374/manifest.json": {
+   "sha256": "d9e037458bf8166210b67077680036b8a32229f721f4beadcd650748bfb250cc",
    "bytes": 4183
   },
-  "runs/20261024T191056Z-9f3268/diagnostics.md": {
+  "runs/20261024T200014Z-4a5374/diagnostics.md": {
    "sha256": "d63180c4758f510a9a9302e846b6d6f0b273b01ad9edb3e1098072ac68777334",
    "bytes": 3633
   },
-  "runs/20261024T191056Z-9f3268/traces.jsonl": {
-   "sha256": "87a0299075522944a50314b91e81450188dfcdef8071212f2fd4bd49bb602696",
-   "bytes": 668604
+  "runs/20261024T200014Z-4a5374/traces.jsonl": {
+   "sha256": "77b3050a968eadebf9c832bcadff7029e032d3439c22ac5029747d8fbb483b6b",
+   "bytes": 668651
   },
-  "runs/20261024T191056Z-9f3268/sample_evaluation.json": {
-   "sha256": "ebd01d65c32791d9656537669a4b5c8d3025c33b1771c6dd5b5be129f3fe5e5e",
-   "bytes": 68762
+  "runs/20261024T200014Z-4a5374/sample_evaluation.json": {
+   "sha256": "729719d70da4e7186bf6faaed05a81ba00538b610ff65be4365c535689a030a7",
+   "bytes": 67386
   },
-  "runs/20261024T191056Z-9f3268/sample_evaluation_no_investigator.json": {
-   "sha256": "ef4fd32608d72fc89ae914e3cc9cfc4a82b27460cd140d75858a2ed9596e6efb",
-   "bytes": 62934
+  "runs/20261024T200014Z-4a5374/sample_evaluation_no_investigator.json": {
+   "sha256": "d0dec61e5e7cd142d45236cf422d85ece154d62b4dd874252e7444bd878df8bd",
+   "bytes": 61562
+  },
+  "runs/20261024T200016Z-9a444f/output.csv": {
+   "sha256": "aead44244a9a08131f7cb29c960b372188dbaa7804b1d314ea1a53651f3f767c",
+   "bytes": 541521
+  },
+  "runs/20261024T200016Z-9a444f/manifest.json": {
+   "sha256": "f2d5087223360e450a3165ee1a4ed545e3171ac0a7934467dd11f4067dcad8d0",
+   "bytes": 4183
   }
  }
 }
