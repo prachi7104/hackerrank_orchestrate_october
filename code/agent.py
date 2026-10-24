@@ -88,7 +88,7 @@ def open_questions(ctx: AuditContext, case: dict, result) -> list[dict]:
         qs.append({"id": f"Q{len(qs) + 1}", "type": "CONFLICT", "resource_id": rid,
                    "question": f"{rid} was excluded because {why}, while a data-catalog claim links it to the subject. "
                                f"Is it the subject's record?"})
-    if result.status == "COMPLETE" and not result.steps:
+    if result.status in ("COMPLETE", "UNRESOLVED_EVIDENCE") and not result.steps:
         unknown = [r["resource_id"] for r in result.trace["resources"] if r["state"] == "UNKNOWN"]
         qs.append({"id": f"Q{len(qs) + 1}", "type": "NO_EVIDENCE", "resources": unknown,
                    "question": "No linked resource has an admissible state at the audit time, so the case cannot be "
@@ -164,6 +164,30 @@ class Toolbox:
 
 # ---------------------------------------------------------------- verification of submitted answers
 
+# Categories each system can hold. The investigator may reinterpret a record's category only within
+# its system (a support record can be a message, an attachment or a contact-index identifier; an
+# identity-service record is always a tombstone), so a treatment must come from deletion_rules.csv
+# for one of these categories.
+SYSTEM_CATEGORIES = {
+    "support_platform": ("SUPPORT_MESSAGE", "SUPPORT_ATTACHMENT", "SECONDARY_IDENTIFIER"),
+    "analytics_platform": ("ANALYTICS_PROFILE", "PRODUCT_TELEMETRY", "SECONDARY_IDENTIFIER"),
+    "identity_service": ("ACCOUNT_TOMBSTONE",),
+    "search_service": ("SEARCH_INDEX_ENTRY",),
+    "account_service": ("USER_PROFILE",),
+    "export_service": ("USER_EXPORT",),
+    "marketing_platform": ("MARKETING_PROFILE",),
+    "security_service": ("SECURITY_AUDIT_LOG",),
+    "legal_service": ("LEGAL_HOLD_RECORD",),
+    "backup_service": ("BACKUP_ARCHIVE",),
+    "email_delivery_service": ("EMAIL_DELIVERY_LOG",),
+    "cache_service": ("CACHE_ENTRY",),
+    "object_storage": ("SUPPORT_ATTACHMENT",),
+}
+
+
+def allowed_actions(ctx: AuditContext, rid: str) -> set:
+    return {ctx.rules[c]["required_action"] for c in SYSTEM_CATEGORIES.get(system_for(rid), ()) if c in ctx.rules}
+
 def verify(res: dict, q: dict, box: Toolbox, keys: set) -> tuple[bool, str]:
     if res.get("outcome") != "RESOLVED":
         return False, "abstained"
@@ -181,7 +205,12 @@ def verify(res: dict, q: dict, box: Toolbox, keys: set) -> tuple[bool, str]:
         if ans not in ACTIONS:
             return False, f"invalid action {ans}"
         about = [u for u in units if u.resource_id == q["resource_id"]]
-        return (True, "supporting unit concerns the resource") if about else (False, "units do not concern the resource")
+        if not about:
+            return False, "units do not concern the resource"
+        allowed = allowed_actions(box.ctx, q["resource_id"])
+        if ans not in allowed:
+            return False, f"{ans} is not a deletion_rules.csv action for any category {q['resource_id']}'s system holds ({sorted(allowed)})"
+        return True, "supporting unit concerns the resource; action allowed by deletion_rules.csv for its system"
     if q["type"] == "NO_EVIDENCE":
         rid, _, state = ans.partition("|")
         if state not in STATES:

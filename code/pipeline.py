@@ -79,6 +79,43 @@ def authorize(g, cases: list[dict]) -> tuple[dict[str, bool], dict[str, str], di
     return intents, failures, records
 
 
+# Question types the bounded investigator takes in normal runs. ACCOUNT is excluded: in the pilot
+# 0 of 4 account resolutions were supported by retrieved evidence (experiments.md).
+INVESTIGATE = ("TREATMENT", "CONFLICT", "NO_EVIDENCE")
+
+
+def investigate_all(g, ctx: AuditContext, cases: list[dict], results: dict) -> dict:
+    """Bounded investigator on every audited case with an open semantic or conflict question.
+    Verified resolutions re-run the same audit_case with overrides; the investigation record is
+    attached to the trace. Returns {case_id: investigation summary}."""
+    from agent import MAX_REQUESTS, apply, investigate, open_questions
+    from llm import BudgetExceeded
+    by_id = {c["case_id"]: c for c in cases}
+    todo = {}
+    for cid, r in results.items():
+        if r.status == "NOT_APPLICABLE":
+            continue
+        qs = [q for q in open_questions(ctx, by_id[cid], r) if q["type"] in INVESTIGATE]
+        if qs:
+            todo[cid] = qs
+    g.admit(len(todo) * MAX_REQUESTS)
+    summary = {}
+    for cid, qs in todo.items():
+        try:
+            inv = investigate(g, ctx, by_id[cid], results[cid], qs)
+        except BudgetExceeded as e:
+            summary[cid] = {"error": f"budget: {e}"}
+            continue
+        new = apply(ctx, by_id[cid], inv)
+        changed = (new.status, new.steps) != (results[cid].status, results[cid].steps)
+        record = {"questions": qs, "tool_calls": inv.tool_calls, "verdicts": inv.verdicts,
+                  "requests": inv.requests, "error": inv.error, "changed_output": changed}
+        new.trace["investigation"] = record
+        results[cid] = new
+        summary[cid] = record
+    return summary
+
+
 def run(ctx: AuditContext, cases: list[dict], intents: dict[str, bool]) -> dict[str, CaseResult]:
     """intents: case_id -> True if the request authorises deletion. A case without an intent
     decision is an operational gap and is not audited (the caller decides how to report it)."""

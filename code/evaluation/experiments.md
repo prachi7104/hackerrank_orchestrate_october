@@ -122,6 +122,34 @@ verification after all regular rules:
   only by citing evidence whose subject link is inferred (grounding flags it) and lowers exact and
   F1. Neither is adopted; both flags remain in code, off.
 
+### Phase 6–7 (24 Oct, 23:00 IST)
+- Recall audit: every rule category that admissible evidence ties to a subject reaches the output.
+  `cache_service` and `email_delivery_service` appear only in workflow activity (claims), never in
+  an evidence file, so no CACHE_ENTRY / EMAIL_DELIVERY_LOG finding can be evidenced. No engine change.
+- Sort order decided: numeric `case_id` order = the order of `deletion_requests.csv`. The samples
+  cannot discriminate (zero-padded ids sort the same either way); if the grader compares rows in the
+  generator's order, a lexicographic sort would misalign every row, while numeric order can at worst
+  fail a lexicographic "is sorted" check. `validate.py` enforces numeric order.
+- E18 investigator in the shared run path (`pipeline.investigate_all`, question types TREATMENT,
+  CONFLICT, NO_EVIDENCE; ACCOUNT excluded after the pilot): samples status 0.875 → 0.906, step
+  P/R/F1 0.975 / 0.803 / 0.881 → 0.981 / 0.819 / 0.893, exact 10/32 unchanged; 20 requests; case_10
+  corrected (verified DELETE), three justified NO_EVIDENCE abstentions (case_01/02/04), case_12
+  answered ANONYMIZE (answer key DELETE; output unchanged). Ablation flag `--no-investigator`.
+  Evaluation cases it would take: case_46 (TREATMENT), case_63 (CONFLICT, NO_EVIDENCE). Replay of the
+  sample run from cache: identical metrics, 0 requests.
+
+### E19 — approved case_63 serialisation and the final candidate (24 Oct 23:15 IST)
+- Fallback isolated: `--gap-fallback` needs `--fallback-approval` and `--fallback-cases`; any other
+  unresolved case, or an approved id that is not unresolved, still blocks output. The trace keeps
+  `decision_status: UNRESOLVED_EVIDENCE` and marks the row as an approved semantic contract exception.
+- First candidate (ee5e05, 10 requests) showed the investigator changing case_46's tombstone to
+  DELETE, contradicting rule_15. Verifier fixed: treatment answers must be a rule action for a
+  category the record's system can hold. Cache replay (0 requests): case_46 restored; samples
+  unchanged (status 0.906, exact 10/32, F1 0.893).
+- Candidate fa90b2: structural 0, semantic 1 (case_63, approved), grounding 1,033 supported / 1
+  unsupported (case_55, declared); regenerated twice with identical output hash and 0 requests;
+  identical to the earlier candidate 0835b3 row for row.
+
 ### Investigator pilot (`agent_pilot.py`, run 20261024T155612Z-8d81f0)
 29 attempts (one 503 retried), 46,434 input / 1,612 output / 2,379 thinking tokens. 7 cases
 investigated (case_07 skipped at the 30-request cap). Of 9 submitted resolutions: 2 accepted by

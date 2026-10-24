@@ -93,5 +93,6 @@ def test_experiments_and_fallback_are_off_by_default():
     args = main.parser().parse_args([])
     assert args.gap_fallback is None and args.fallback_approval == ""
     assert main.main(["--gap-fallback", "complete-empty"]) == 2      # refused without a recorded approval
+    assert main.main(["--gap-fallback", "complete-empty", "--fallback-approval", "x"]) == 2   # and without case ids
     src = Path(main.__file__).read_text(encoding="utf-8")
     assert "LIFECYCLE_FALLBACK" not in src and "GAP_ACCOUNT_ABSENCE" not in src

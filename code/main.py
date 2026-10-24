@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.stdout.reconfigure(encoding="utf-8")
 
 from llm import MODEL, Gemini, run_summary  # noqa: E402
-from pipeline import DATASET, ROOT, authorize, build_context, read_rows, run  # noqa: E402
+from pipeline import DATASET, ROOT, authorize, build_context, investigate_all, read_rows, run  # noqa: E402
 from schema import OUTPUT_COLUMNS, serialise_steps  # noqa: E402
 from grounding import audit_result  # noqa: E402
 from validate import case_number, validate  # noqa: E402
@@ -109,6 +109,12 @@ def diagnostics(results, cases, ctx, auth, usage, quality) -> str:
         "## Evidence-gap policy (contract exceptions and inferences, not proof)",
         *[f"- {cid}: {json.dumps(g, ensure_ascii=False)}" for cid, g in quality["gaps"].items()],
         "",
+        "## Approved serialisation exceptions (noncompliant; the decision stays UNRESOLVED_EVIDENCE)",
+        *([f"- {cid}: written as {r.trace['serialisation']['written_as']} with steps []; approval: "
+          f"{r.trace['serialisation']['approval']}; excluded as contradicted: "
+          f"{json.dumps((r.trace.get('gap') or {}).get('excluded_as_contradicted'), ensure_ascii=False)}"
+           for cid, r in results.items() if r.trace.get("serialisation")] or ["- none"]),
+        "",
         "## API usage (this run, from the ledger)",
         f"- model: {MODEL}; {json.dumps(usage)}",
         "- actual cost: 0 (Free tier); list-price equivalent is computed in usage_report.md from the final run",
@@ -124,13 +130,17 @@ def parser() -> argparse.ArgumentParser:
                     help="NONCOMPLIANT serialisation for UNRESOLVED_EVIDENCE rows; needs --fallback-approval")
     ap.add_argument("--fallback-approval", default="",
                     help="who approved the fallback and when; recorded in the manifest")
+    ap.add_argument("--fallback-cases", default="",
+                    help="comma-separated case ids the approval covers; any other unresolved case still blocks")
     return ap
 
 
 def main(argv=None) -> int:
     args = parser().parse_args(argv)
-    if args.gap_fallback and not args.fallback_approval.strip():
-        print("--gap-fallback is a noncompliant exception and needs --fallback-approval \"<approver, date>\"")
+    approved_cases = {c.strip() for c in args.fallback_cases.split(",") if c.strip()}
+    if args.gap_fallback and (not args.fallback_approval.strip() or not approved_cases):
+        print("--gap-fallback is a noncompliant exception and needs --fallback-approval \"<approver, date>\" "
+              "and --fallback-cases <ids>")
         return 2
 
     cases = read_rows("deletion_requests.csv")
@@ -141,14 +151,25 @@ def main(argv=None) -> int:
         return 2
     ctx = build_context(g)
     results = run(ctx, cases, intents)
+    investigations = investigate_all(g, ctx, cases, results)
     ordered = sorted(results, key=case_number)
     unresolved = [cid for cid in ordered if results[cid].status == "UNRESOLVED_EVIDENCE"]
     fallback = {"incomplete-empty": "INCOMPLETE", "complete-empty": "COMPLETE"}.get(args.gap_fallback)
-    if unresolved and not fallback:
-        print(f"{len(unresolved)} case(s) have no admissible evidence (UNRESOLVED_EVIDENCE): {unresolved}. "
-              "No output.csv written; a serialisation fallback needs --gap-fallback and explicit approval.")
+    uncovered = [cid for cid in unresolved if not fallback or cid not in approved_cases]
+    if uncovered:
+        print(f"{len(uncovered)} case(s) have no admissible evidence (UNRESOLVED_EVIDENCE) and no approved "
+              f"fallback: {uncovered}. No output.csv written.")
         return 3
+    unused = sorted(approved_cases - set(unresolved))
+    if unused:
+        print(f"fallback approval lists cases that are not unresolved: {unused}; nothing written")
+        return 2
     serialised = {cid: (fallback if cid in unresolved else results[cid].status) for cid in ordered}
+    for cid in unresolved:   # the decision record stays UNRESOLVED_EVIDENCE; only the CSV row is a fallback
+        results[cid].trace["serialisation"] = {
+            "decision_status": "UNRESOLVED_EVIDENCE", "written_as": fallback, "steps": [],
+            "approved_semantic_contract_exception": True, "approval": args.fallback_approval,
+            "not_a_successful_audit": True}
     rows = [[cid, serialised[cid], serialise_steps(results[cid].steps)] for cid in ordered]
 
     out_dir = ROOT / "runs" / g.run_id
@@ -183,8 +204,15 @@ def main(argv=None) -> int:
         "structural_errors": len(rep["structural"]), "semantic_errors": len(rep["semantic"]),
         "grounding_unsupported": len(ungrounded), "declared_exceptions": quality["declared"],
         "undeclared_issues": quality["undeclared"], "evidence_gaps": gaps,
+        "investigations": {c: {k: v[k] for k in ("requests", "changed_output", "error") if k in v}
+                           for c, v in investigations.items()},
         "noncompliant_fallback": {"mode": args.gap_fallback, "approval": args.fallback_approval,
-                                  "rows": {c: fallback for c in unresolved}},
+                                  "approved_cases": sorted(approved_cases),
+                                  "rows": {c: {"written_as": fallback, "decision_status": "UNRESOLVED_EVIDENCE",
+                                               "gap": results[c].trace.get("gap"),
+                                               "investigation": {k: results[c].trace.get("investigation", {}).get(k)
+                                                                 for k in ("verdicts", "requests")}}
+                                           for c in unresolved}},
     }
     (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8")
     print(f"candidate: {out}  rows={len(rows)}  structural_errors={len(rep['structural'])}  "

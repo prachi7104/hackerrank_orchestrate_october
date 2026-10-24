@@ -1,0 +1,5 @@
+# Runtime (Python 3.10+). The Gemini client uses only the standard library (urllib).
+pypdf==5.1.0
+tzdata==2025.2      # Pacific-day quota windows on platforms without a system time-zone database (Windows)
+# Development
+pytest==8.3.3

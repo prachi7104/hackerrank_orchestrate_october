@@ -18,7 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.stdout.reconfigure(encoding="utf-8")
 
-from pipeline import authorize, build_dev_context, read_rows, run  # noqa: E402
+from pipeline import authorize, build_dev_context, investigate_all, read_rows, run  # noqa: E402
 from schema import serialise_steps  # noqa: E402
 from scoring import rows_to_map, score  # noqa: E402
 
@@ -31,6 +31,7 @@ def main(argv=None) -> int:
     ap.add_argument("--cases", default="")
     ap.add_argument("--json", default="")
     ap.add_argument("--show", action="store_true", help="print per-case differences")
+    ap.add_argument("--no-investigator", action="store_true", help="ablation: deterministic path only")
     args = ap.parse_args(argv)
 
     samples = read_rows("sample_deletion_requests.csv")
@@ -49,15 +50,19 @@ def main(argv=None) -> int:
         intents, failures, auth = authorize(g, samples)
 
     ctx = build_dev_context(g, status_compat=not args.no_status_compat, record_time=args.record_time)
+    results = run(ctx, samples, intents)
+    investigations = investigate_all(g, ctx, samples, results) if g is not None and not args.no_investigator else {}
     if g is not None:
         from llm import run_summary
         usage = {"run_id": g.run_id, **run_summary(g.run_id)}
-    results = run(ctx, samples, intents)
     pred = {cid: (r.status, json.loads(serialise_steps(r.steps))) for cid, r in results.items()}
     report = score(pred, gold)
     print(json.dumps({"intent": args.intent, **report["summary"]}, indent=2))
     gaps = sorted(c for c, r in results.items() if r.status == "UNRESOLVED_EVIDENCE")
     print(f"unresolved evidence (scored as wrong status, no fallback applied): {len(gaps)} {gaps}")
+    for cid, inv in investigations.items():
+        print(f"investigator {cid}: requests {inv.get('requests')} changed {inv.get('changed_output')} "
+              f"verdicts {[(v['question_id'], v['outcome'], v['answer'], v['accepted']) for v in inv.get('verdicts', [])]}")
     if failures:
         print("operational failures (not audited):", failures)
     if usage:
