@@ -1,0 +1,105 @@
+{
+ "release": "Ghost Data Still Exists — HackerRank Orchestrate October 2026",
+ "source": {
+  "tag": "final-src",
+  "commit": "7e257246a43dda29a0ed8d67a7bdb335f08eaa5c",
+  "tree": "3954663c1cf3af437b813a742bb5c705d78a1f9f",
+  "note": "reports and artifacts below were generated after this commit and are bound here by hash"
+ },
+ "configuration": {
+  "model": "gemini-3.5-flash-lite",
+  "provider": "Google Gemini Developer API (free tier)",
+  "prompt_versions": {
+   "request_authorization": "authz-v1",
+   "screenshot_extraction": "shot-v1",
+   "restore_lines": "restore-v1",
+   "investigator": "inv-v2",
+   "screenshot_question": "screen-q-v1"
+  },
+  "account_policy": "D (DIRECT / CONDITIONALLY_INFERRED anchored / UNRESOLVED)",
+  "experiments_X1_X2": "disabled",
+  "visibility": "strict: file captured_at <= audit_at; state observed >= requested_at",
+  "command": "python code/main.py --promote --gap-fallback incomplete-empty --fallback-cases case_63 --fallback-approval \"<approval>\"",
+  "fallback": "incomplete-empty",
+  "fallback_cases": [
+   "case_63"
+  ],
+  "fallback_approval": "Prachi Agarwalla, 2026-10-24 23:20 IST (chat approval; semantic contract exception)"
+ },
+ "inputs": {
+  "deletion_requests.csv": "7505a4d31e6fb35d77280c55b224290c5ebb2dd1ce21019222a5f190454bbb2d",
+  "deletion_rules.csv": "17332f5566e776d2f7bcff36e93cf23c9d8594dc2ff1e9c247ad2614539dc40f",
+  "evidence_files.csv": "bcb1d0b909dfe2b29dd461f9d7e90d8a031803de21858d5f18f52c771ab0d614",
+  "output.csv": "fbba9aeb583d359e67d241bec0f8a2b09f31d66df0b1773e13999a94381533bf",
+  "sample_deletion_requests.csv": "b3802bdb242ab4869d84191a6c0d3f7d1601afbc6114833f9184c323d319c7e6",
+  "sample_output.csv": "72ef6b14f504a72a674deefad08c66e397f8d8c05bd23d9791e41db6ef184d91",
+  "system_activity.csv": "ba1bdcceb92bc5b358821a8589a98269518f9b3ba38adb08700c8351b888cbb2",
+  "user_audit_log.csv": "839cf36efdc6719bd3a55ccd0438f88ca81e2cbee246d34ee6ebde4f6d826221",
+  "user_identities.csv": "66e40cede4149e1b8344ab712f7afeea9c492e4e521dbc3014dfe267cd65c9d5",
+  "dataset/evidence/** (94 files, sha256 of per-file digests)": "90bc1c632fddd65eab41b5c1283e2659da85860c39159069dd5e7c8e9d771215"
+ },
+ "runs": {
+  "final": "20261024T175408Z-427c28",
+  "reproduction": "20261024T175410Z-05251e",
+  "output_sha256": "aead44244a9a08131f7cb29c960b372188dbaa7804b1d314ea1a53651f3f767c",
+  "reproduction_identical": true,
+  "provider_requests_in_final_run": 0,
+  "cached_responses_reused": 60
+ },
+ "validation": {
+  "structural_errors": 0,
+  "semantic_errors": 1,
+  "grounding_unsupported": 1,
+  "declared_exceptions": [
+   "case_63: INCOMPLETE without findings",
+   "case_55: REPORT_RESTORE_RISK backup_9287 cites evidence_32: evidence_32 does not show the state ACTIVE"
+  ],
+  "undeclared_issues": []
+ },
+ "exceptions": {
+  "case_63": "UNRESOLVED_EVIDENCE serialised as INCOMPLETE with [] under explicit approval; marketing_001 excluded (evidence_60 names sj.park@naver.com; only activity_4008 links it to the requester); semantic contract exception, not a successful audit",
+  "case_55": "RESTORE_INFERRED: restore risk on backup_9287 citing evidence_32; restore access of this archive not shown; grounding reports the citation unsupported"
+ },
+ "artifacts": {
+  "output.csv": {
+   "sha256": "aead44244a9a08131f7cb29c960b372188dbaa7804b1d314ea1a53651f3f767c",
+   "bytes": 541521
+  },
+  "code.zip": {
+   "sha256": "d2cc5a3e9b13182aca7900b1dd17c12e2868b397799d06de94cac52a20f70552",
+   "bytes": 97163
+  },
+  "code/evaluation/evaluation_report.md": {
+   "sha256": "1ae7647cecb5b2a7aed753ed45c3a2972212a87318311c51fb7f9a80d1772134",
+   "bytes": 9655
+  },
+  "code/evaluation/usage_report.md": {
+   "sha256": "4219b43d69588f17691ff2ec357d503125dd6ce1f438fd2a5d2f8ce44ef61e62",
+   "bytes": 2759
+  },
+  "code/evaluation/experiments.md": {
+   "sha256": "c35cbf74880e31ec7ad2128dcbc673e91313a6a301f53eafa03256dd5bacb163",
+   "bytes": 17418
+  },
+  "runs/20261024T175408Z-427c28/output.csv": {
+   "sha256": "aead44244a9a08131f7cb29c960b372188dbaa7804b1d314ea1a53651f3f767c",
+   "bytes": 541521
+  },
+  "runs/20261024T175408Z-427c28/manifest.json": {
+   "sha256": "9093143a943574141f602a9d368ecca693cf33172cba36e4bafd8b5d20bbac38",
+   "bytes": 4183
+  },
+  "runs/20261024T175408Z-427c28/diagnostics.md": {
+   "sha256": "d63180c4758f510a9a9302e846b6d6f0b273b01ad9edb3e1098072ac68777334",
+   "bytes": 3633
+  },
+  "runs/20261024T175408Z-427c28/traces.jsonl": {
+   "sha256": "3f4e6e22cd08888752103a4b09cf8438f9ed11751a27a2a58954f215e20041c3",
+   "bytes": 668636
+  },
+  "runs/20261024T175408Z-427c28/sample_evaluation.json": {
+   "sha256": "915e698fd23f076188867bbda6f966b25a2314f7cc5244a8a32d8dcbfbb32ee6",
+   "bytes": 71228
+  }
+ }
+}

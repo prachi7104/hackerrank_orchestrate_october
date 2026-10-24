@@ -1,7 +1,7 @@
 # Evaluation report
 
-> **Release candidate, 24 Oct 23:15 IST (not yet frozen).** Sample numbers below were reproduced
-> from cache with 0 provider requests; the evaluation-set candidate is `runs/20261024T174423Z-fa90b2`.
+> **Final release artifacts, generated 24 Oct 23:24 IST from source tag `final-src` (7e25724).** Sample numbers below were reproduced
+> from cache with 0 provider requests; the evaluation-set candidate is `runs/20261024T175408Z-427c28`.
 
 All numbers are **development measurements on the 32 public samples** (`sample_output.csv`), which
 were also used to design the engine. They are not an estimate of hidden-test accuracy. The
@@ -86,7 +86,7 @@ keep/revert* (details in `experiments.md`).
   at a measured cost on the samples.
 - **Small development set.** 32 labelled cases, 10 of them handcrafted with different conventions.
 
-## 5. Evaluation-set candidate (`runs/20261024T174423Z-fa90b2`)
+## 5. Evaluation-set candidate (`runs/20261024T175408Z-427c28`)
 
 No answer key exists for these 518 rows; this section reports validation, not accuracy.
 
@@ -95,7 +95,7 @@ No answer key exists for these 518 rows; this section reports validation, not ac
 | Structural validation (`validate.py`) | 0 errors: 518 rows, ids, numeric order, schema, numbering, evidence ids, `audit_at` boundary |
 | Semantic validation | **1 error** — case_63 `INCOMPLETE` without findings (approved exception above) |
 | Citation grounding | 1,033 cited steps supported, **1 unsupported** — case_55 inferred restore risk |
-| Reproducibility | regenerated twice from cache: identical output hash, 0 provider requests |
+| Reproducibility | regenerated from the clean `final-src` tag and once more: identical output hash (`aead4424…`), 0 provider requests |
 | Status (decision) | 354 INCOMPLETE, 153 COMPLETE, 10 NOT_APPLICABLE, 1 UNRESOLVED_EVIDENCE (written as INCOMPLETE) |
 | Investigator | case_46 (treatment; answer rejected by verification) and case_63 (conflict resolved OTHER; no-evidence abstained) |
 | Model usage | see `usage_report.md` (₹0, free tier; cached responses attributed to the runs that made them) |

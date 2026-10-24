@@ -186,3 +186,10 @@ comparison only; final generation never enables it.
 - Retained audit records visible only after `audit_at` or nowhere: case_09, 18, 20, 23, 24, 29, 30.
 - Category semantics: case_10 (support replica record → gold DELETE), case_12 (hash-keyed analytics → gold DELETE).
 - Handcrafted accounts with no activity match: case_04 (appears in no file), 06, 08.
+
+### E20 — release (24 Oct 23:24 IST)
+Source frozen as `final-src` (commit 7e25724). Final run `20261024T175408Z-427c28` from the clean tag
+(manifest: dirty False), promoted to `output.csv`; reproduction run `20261024T175410Z-05251e`
+identical (sha256 aead4424…f767c); both 0 provider requests. Samples reproduced: status 0.906, exact
+10/32, step F1 0.893. Reports regenerated after the freeze and committed separately with
+`release/RELEASE_MANIFEST.json`.
