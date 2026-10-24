@@ -1,0 +1,35 @@
+{
+ "run_id": "20261024T153423Z-0977d9",
+ "final": false,
+ "model": "gemini-3.5-flash-lite",
+ "git": {
+  "commit": "bb560d4f545343b34be1e8eb59ed23ff06d34f57",
+  "dirty": true
+ },
+ "inputs": {
+  "deletion_requests.csv": "7505a4d31e6fb35d77280c55b224290c5ebb2dd1ce21019222a5f190454bbb2d",
+  "deletion_rules.csv": "17332f5566e776d2f7bcff36e93cf23c9d8594dc2ff1e9c247ad2614539dc40f",
+  "evidence_files.csv": "bcb1d0b909dfe2b29dd461f9d7e90d8a031803de21858d5f18f52c771ab0d614",
+  "output.csv": "fbba9aeb583d359e67d241bec0f8a2b09f31d66df0b1773e13999a94381533bf",
+  "sample_deletion_requests.csv": "b3802bdb242ab4869d84191a6c0d3f7d1601afbc6114833f9184c323d319c7e6",
+  "sample_output.csv": "72ef6b14f504a72a674deefad08c66e397f8d8c05bd23d9791e41db6ef184d91",
+  "system_activity.csv": "ba1bdcceb92bc5b358821a8589a98269518f9b3ba38adb08700c8351b888cbb2",
+  "user_audit_log.csv": "839cf36efdc6719bd3a55ccd0438f88ca81e2cbee246d34ee6ebde4f6d826221",
+  "user_identities.csv": "66e40cede4149e1b8344ab712f7afeea9c492e4e521dbc3014dfe267cd65c9d5"
+ },
+ "output_sha256": "42fedc47f1abaf4276091e233e266b4cec5a07da80da263bf5b327fb396417ae",
+ "rows": 518,
+ "validator_errors": 1,
+ "usage": {
+  "attempts": 38,
+  "failed_attempts": 0,
+  "cache_hits": 11,
+  "input": 34416,
+  "output": 21492,
+  "thinking": 0,
+  "total": 55908,
+  "unknown_token_fields": 0,
+  "latency_s": 461.1,
+  "thinking_field_absent": 38
+ }
+}

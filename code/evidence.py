@@ -360,7 +360,7 @@ PHONE_RE = re.compile(r"\+\d[\d ()-]{7,}\d")
 USER_RE = re.compile(r"\buser_\d+\b")
 
 
-def parse_pdf(fid, cap, path: Path, origin: str) -> list[Observation]:
+def parse_pdf(fid, cap, path: Path, origin: str, aliases: dict | None = None) -> list[Observation]:
     """A business document that names a resource id is evidence that the record exists at capture
     time and carries the identifiers printed in it. A support-platform document is an attachment."""
     text = pdf_text(path)
@@ -371,7 +371,8 @@ def parse_pdf(fid, cap, path: Path, origin: str) -> list[Observation]:
         content[f"phone#{i}"] = v
     refs = {f"customer_reference#{i}": v for i, v in enumerate(USER_RE.findall(text))}
     out = []  # repeated fields are keyed field#n; field_name() strips the suffix
-    for rid in sorted(set(RESOURCE_RE.findall(text))):
+    named = set(RESOURCE_RE.findall(text)) | {rid for alias, rid in (aliases or {}).items() if alias in text}
+    for rid in sorted(named):
         obs = Observation(fid, cap, cap, rid, system_for(rid), exists=True,
                           content={**content, **refs}, collection="pdf", locator="text layer")
         if origin == "support_platform" and rid.startswith("support_"):
@@ -431,7 +432,7 @@ def load_manifest(dataset: Path) -> list[EvidenceFile]:
     return files
 
 
-def load_observations(dataset: Path) -> tuple[list[Observation], dict]:
+def load_observations(dataset: Path, aliases: dict | None = None) -> tuple[list[Observation], dict]:
     """Returns all observations and a coverage report {file_id: count or reason}."""
     obs, coverage = [], {}
     for f in load_manifest(dataset):
@@ -444,7 +445,7 @@ def load_observations(dataset: Path) -> tuple[list[Observation], dict]:
         elif f.kind == "sql":
             got = parse_sql(f.file_id, f.captured_at, f.path)
         elif f.kind == "pdf":
-            got = parse_pdf(f.file_id, f.captured_at, f.path, f.origin)
+            got = parse_pdf(f.file_id, f.captured_at, f.path, f.origin, aliases)
         else:
             coverage[f.file_id] = f"not parsed ({f.kind})"
             continue

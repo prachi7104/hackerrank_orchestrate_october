@@ -20,17 +20,53 @@ def all_cases() -> tuple[list[dict], list[dict]]:
     return read_rows("sample_deletion_requests.csv"), read_rows("deletion_requests.csv")
 
 
-def build_context(status_compat: bool = True) -> AuditContext:
+def screenshot_observations(g) -> tuple[list, list]:
+    """Validated screenshot observations (model transcription, cached) and the per-file report."""
+    if g is None:
+        return [], []
+    import vision
+    g.admit(vision.planned_requests(DATASET))
+    return vision.extract(g, DATASET, read_rows("system_activity.csv"), read_rows("user_identities.csv"))
+
+
+def build_context(g=None, status_compat: bool = True) -> AuditContext:
     """The only context used for generation: strict audit_at visibility (decision of 24 Oct).
+    With a model client, screenshot observations are included; evaluation passes the same client.
     Record-time visibility is reachable only through build_dev_context in evaluation."""
     samples, evals = all_cases()
-    return AuditContext(DATASET, samples + evals, status_compat=status_compat, record_time=False)
+    shots, report = screenshot_observations(g)
+    ctx = AuditContext(DATASET, samples + evals, status_compat=status_compat, record_time=False,
+                       extra_observations=shots)
+    ctx.screenshot_report = report
+    return ctx
 
 
-def build_dev_context(status_compat: bool = True, record_time: bool = False) -> AuditContext:
+def build_dev_context(g=None, status_compat: bool = True, record_time: bool = False) -> AuditContext:
     """Development comparisons only; never called by code/main.py."""
     samples, evals = all_cases()
-    return AuditContext(DATASET, samples + evals, status_compat=status_compat, record_time=record_time)
+    shots, report = screenshot_observations(g)
+    ctx = AuditContext(DATASET, samples + evals, status_compat=status_compat, record_time=record_time,
+                       extra_observations=shots)
+    ctx.screenshot_report = report
+    return ctx
+
+
+def authorize(g, cases: list[dict]) -> tuple[dict[str, bool], dict[str, str], dict]:
+    """Model-based authorisation for every case: (intents, failures, authorisation records).
+    A case whose text could not be classified appears only in failures."""
+    from intent import classify, planned_requests
+    texts = [c["request_text"] for c in cases]
+    g.admit(planned_requests(texts))
+    auth = classify(g, texts)
+    intents, failures, records = {}, {}, {}
+    for c in cases:
+        a = auth[c["request_text"]]
+        records[c["case_id"]] = a.__dict__
+        if a.status == "ok":
+            intents[c["case_id"]] = a.authorizes_deletion
+        else:
+            failures[c["case_id"]] = a.error
+    return intents, failures, records
 
 
 def run(ctx: AuditContext, cases: list[dict], intents: dict[str, bool]) -> dict[str, CaseResult]:

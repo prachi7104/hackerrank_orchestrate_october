@@ -7,6 +7,7 @@ Every linked resource carries its provenance so the trace can show why it belong
 from __future__ import annotations
 
 import csv
+import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -60,13 +61,16 @@ class CaseResult:
 class AuditContext:
     """Everything loaded once: observations, identities, rules, activity, account assignment."""
 
-    def __init__(self, dataset: Path, cases: list[dict], status_compat: bool = True, record_time: bool = False):
+    def __init__(self, dataset: Path, cases: list[dict], status_compat: bool = True, record_time: bool = False,
+                 extra_observations: list[Observation] = ()):
         """record_time=False (default): an observation is usable only if its file was captured by
         audit_at. record_time=True also uses records whose own capture time is <= audit_at inside a
         file exported later; such observations can inform linkage and state but are never cited."""
         self.dataset = dataset
         self.record_time = record_time
-        self.observations, self.coverage = load_observations(dataset)
+        self.activities = list(csv.DictReader(open(dataset / "system_activity.csv", encoding="utf-8")))
+        self.observations, self.coverage = load_observations(dataset, catalog_aliases(self.activities))
+        self.observations += catalog_observations(self.activities) + list(extra_observations)
         self.by_resource: dict[str, list[Observation]] = defaultdict(list)
         self.by_key: dict[str, list[Observation]] = defaultdict(list)
         for o in self.observations:
@@ -76,7 +80,6 @@ class AuditContext:
         self.absence = account_absence_snapshots(dataset)
         self.identities = IdentityIndex(dataset)
         self.rules = {r["data_category"]: r for r in csv.DictReader(open(dataset / "deletion_rules.csv", encoding="utf-8"))}
-        self.activities = list(csv.DictReader(open(dataset / "system_activity.csv", encoding="utf-8")))
         self.subjects = {c["case_id"]: self.identities.resolve(c["email"], c["audit_at"]) for c in cases}
         direct = {c["case_id"]: {r for r, _ in self.linked(c, self.subjects[c["case_id"]]).items()
                                  if r.startswith("account_")} for c in cases}
@@ -96,6 +99,33 @@ class AuditContext:
         return out
 
 
+CATALOG_RE = re.compile(r"(?:linked|confirmed) (\S+) \(([^)]+)\) (?:to|belongs only to) (\S+) and (user_\d+)")
+
+
+def catalog_observations(activities: list[dict]) -> list[Observation]:
+    """Data-catalog LINK_RESOURCE_IDENTITY activity links a resource to a subject. It carries no state,
+    so it can bring a resource into a case but never decides whether the resource is compliant."""
+    out = []
+    for a in activities:
+        m = CATALOG_RE.search(a["details"]) if a["event_type"] == "LINK_RESOURCE_IDENTITY" else None
+        if m:
+            rid, _alias, email, user = m.groups()
+            system = system_for(rid) if system_for(rid) != "unknown" else a["target_system"]
+            out.append(Observation(a["activity_id"], a["event_time"], a["event_time"], rid, system,
+                                   lookups={email, user}, collection="data_catalog", locator=a["activity_id"]))
+    return out
+
+
+def catalog_aliases(activities: list[dict]) -> dict[str, str]:
+    """alias (file name, statement number, user id) -> resource id, from data-catalog activity."""
+    out = {}
+    for a in activities:
+        m = CATALOG_RE.search(a["details"]) if a["event_type"] == "LINK_RESOURCE_IDENTITY" else None
+        if m and m.group(2) != m.group(1):
+            out[m.group(2)] = m.group(1)
+    return out
+
+
 def latest(obs: list[Observation]) -> Observation | None:
     return max(obs, key=lambda o: (o.observed_at, o.captured_at), default=None)
 
@@ -106,7 +136,11 @@ def assess(ctx: AuditContext, rid: str, case: dict, link: str) -> ResourceAssess
     category = next((o.category for o in sorted(visible, key=lambda o: o.observed_at, reverse=True) if o.category), None)
     category = category or SYSTEM_CATEGORY.get(system, "UNKNOWN")
     action = "PROCESS" if category == "DATA_FLOW" else ctx.rules.get(category, {}).get("required_action", "UNKNOWN")
-    last = latest(visible)
+    # State must be observed after the request was made: an earlier capture shows the record before
+    # the deletion workflow ran, so it can link the resource but cannot say what remains at audit_at.
+    stateful = [o for o in visible if (o.exists is not None or o.active is not None or o.result)
+                and o.observed_at >= case["requested_at"]]
+    last = latest(stateful)
     if last is None and rid.startswith("account_"):
         proof = [s for s in ctx.absence if s[1] <= case["audit_at"] and rid not in s[2]]
         if proof:
@@ -114,7 +148,7 @@ def assess(ctx: AuditContext, rid: str, case: dict, link: str) -> ResourceAssess
             return ResourceAssessment(rid, "account_service", category, action, "ABSENT", fid, link + f"; absent from {fid}")
     if last is None:
         return ResourceAssessment(rid, system, category, action, "UNKNOWN", "", link)
-    citable = [o for o in visible if o.captured_at <= case["audit_at"]]
+    citable = [o for o in stateful if o.captured_at <= case["audit_at"]]
     cite = last.file_id if last in citable else (latest(citable).file_id if citable else "")
     if category in ("DATA_FLOW", "BACKUP_ARCHIVE") and last.active is not None:
         state = "ACTIVE" if last.active else "INACTIVE"

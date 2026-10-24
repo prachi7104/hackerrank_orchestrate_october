@@ -1,10 +1,12 @@
-"""Development evaluation on the 32 public samples, using the same decision function as generation.
+"""Development evaluation on the 32 public samples, using the same decision functions as generation.
 
-Usage:  python code/evaluation/main.py [--intent oracle] [--no-status-compat] [--cases case_05,case_12] [--json out.json]
+Usage:  python code/evaluation/main.py [--intent model|oracle] [--no-status-compat] [--record-time]
+                                       [--cases case_05,case_12] [--show] [--json out.json]
 
---intent oracle takes the authorise/not-authorise decision from the sample answers (all 32 samples
-authorise deletion). It isolates the deterministic core and is reported as such, never as
-end-to-end accuracy.
+--intent model (default) classifies every request_text with the model, exactly as generation does.
+--intent oracle takes the authorisation decision from the sample answers; it isolates the
+deterministic core and is never reported as end-to-end accuracy.
+--record-time is a development comparison only (strict audit_at visibility is final).
 """
 from __future__ import annotations
 
@@ -14,14 +16,16 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.stdout.reconfigure(encoding="utf-8")
 
-from pipeline import build_dev_context, read_rows, run  # noqa: E402
+from pipeline import authorize, build_dev_context, read_rows, run  # noqa: E402
+from schema import serialise_steps  # noqa: E402
 from scoring import rows_to_map, score  # noqa: E402
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--intent", choices=["oracle"], default="oracle")
+    ap.add_argument("--intent", choices=["model", "oracle"], default="model")
     ap.add_argument("--no-status-compat", action="store_true")
     ap.add_argument("--record-time", action="store_true", help="use records captured <= audit_at inside later files (never cited)")
     ap.add_argument("--cases", default="")
@@ -35,13 +39,27 @@ def main(argv=None) -> int:
         keep = set(args.cases.split(","))
         samples = [c for c in samples if c["case_id"] in keep]
         gold = {k: v for k, v in gold.items() if k in keep}
-    intents = {cid: status != "NOT_APPLICABLE" for cid, (status, _) in gold.items()}
 
-    ctx = build_dev_context(status_compat=not args.no_status_compat, record_time=args.record_time)
+    usage, failures, auth, g = None, {}, {}, None
+    if args.intent == "oracle":
+        intents = {cid: status != "NOT_APPLICABLE" for cid, (status, _) in gold.items()}
+    else:
+        from llm import Gemini
+        g = Gemini()
+        intents, failures, auth = authorize(g, samples)
+
+    ctx = build_dev_context(g, status_compat=not args.no_status_compat, record_time=args.record_time)
+    if g is not None:
+        from llm import run_summary
+        usage = {"run_id": g.run_id, **run_summary(g.run_id)}
     results = run(ctx, samples, intents)
-    pred = {cid: (r.status, [json.loads(s) for s in [_dump(r)]][0]) for cid, r in results.items()}
+    pred = {cid: (r.status, json.loads(serialise_steps(r.steps))) for cid, r in results.items()}
     report = score(pred, gold)
-    print(json.dumps(report["summary"], indent=2))
+    print(json.dumps({"intent": args.intent, **report["summary"]}, indent=2))
+    if failures:
+        print("operational failures (not audited):", failures)
+    if usage:
+        print("api usage:", json.dumps(usage))
     if args.show:
         for cid, d in report["cases"].items():
             if not d["exact"]:
@@ -50,17 +68,16 @@ def main(argv=None) -> int:
                     print("   - missing", m)
                 for e in d["extra"]:
                     print("   + extra  ", e)
-                acct = results[cid].trace.get("account_link")
-                print("     account link:", acct)
+                if cid in results:
+                    print("     account link:", results[cid].trace.get("account_link"))
+                if cid in auth:
+                    print("     authorisation:", auth[cid])
     if args.json:
-        Path(args.json).write_text(json.dumps({"summary": report["summary"], "cases": report["cases"],
-                                               "traces": {k: v.trace for k, v in results.items()}}, indent=1, default=list))
+        Path(args.json).write_text(json.dumps({"summary": report["summary"], "usage": usage, "failures": failures,
+                                               "authorisation": auth, "cases": report["cases"],
+                                               "traces": {k: v.trace for k, v in results.items()}},
+                                              indent=1, default=list, ensure_ascii=False), encoding="utf-8")
     return 0
-
-
-def _dump(r):
-    from schema import serialise_steps
-    return serialise_steps(r.steps)
 
 
 if __name__ == "__main__":

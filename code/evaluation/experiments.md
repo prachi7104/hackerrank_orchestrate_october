@@ -14,6 +14,21 @@ Format: observed failure → hypothesis → changed mechanism → measured resul
 | E2 | resources with no visible observation got system `unknown`; PDF identifiers not recognised as direct identifiers | system fallback from the resource prefix; repeated fields keyed `field#n` | 0.969 | 0.375 | 0.964 / 0.829 / 0.891 | keep (bug fix) |
 | E3 | case_31 cites E51 (bundle with an empty account collection), we cited E90 | snapshot-bundle profile collections count as absence proof; cite the latest citable observation | 0.969 | 0.406 | 0.970 / 0.834 / 0.897 | keep |
 
+| E4 | authorisation came from the answer key | model classifier (`gemini-3.5-flash-lite`, prompt `authz-v1`, batches of 10, verbatim-quote and id validation) replaces the oracle | 0.969 | 0.406 | 0.970 / 0.834 / 0.897 | keep — all 32 samples classified DELETION, identical to oracle; 4 requests, 4,859 tokens |
+
+Custom authorisation cases (`code/evaluation/intent_cases.py`, 12 hand-written texts: negation,
+German/Korean/Portuguese/French, mixed intent, an instruction-like injection): 12/12 correct, 2
+requests (one 503 retried successfully). The public samples contain no non-deletion request, so
+this small set is the only evidence on false authorisation; it shares an author with the prompt.
+
+| E5 | screenshots unread; catalog links unused | screenshot transcription (11 calls, `shot-v1`) validated in code + data-catalog links as stateless link evidence | 0.969 | 0.344 | 0.947 / 0.834 / 0.887 | regression: case_07 gained object_19 and case_17 gained tombstone_17 from February/March captures |
+| E6 | E5 regression: pre-request captures treated as current state | state must come from observations at or after `requested_at`; earlier captures may still link resources | 0.969 | 0.406 | 0.970 / 0.834 / 0.897 | keep — regression removed, screenshots retained |
+| E7 | first full candidate: case_33 COMPLETE with no provable steps (validator blocked it) | PDF text also resolves catalog aliases (statement NST-2026-0718-1842 → export_1842) | 0.969 | 0.406 | 0.970 / 0.834 / 0.897 | keep — samples unchanged; candidate validator errors 1 → 0 |
+
+Screenshot extraction check (`code/evaluation/screenshot_check.py`, reference read by hand from the
+11 images): 24/24 resource ids, 0 unexpected, 16/16 printed identifiers correct, after one
+code-side rule (take the record's own-kind id from linked_ids when the header id is a user id).
+
 ## Account-linkage variants (E3 code, all 540 deletion requests)
 
 | Variant | step F1 (samples) | exact | linked direct / activity / ambiguous / none | sample links wrong |
