@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.stdout.reconfigure(encoding="utf-8")
 
 import core  # noqa: E402
+import evidence  # noqa: E402
 import linking  # noqa: E402
 from grounding import audit_result  # noqa: E402
 from llm import Gemini  # noqa: E402
@@ -26,9 +27,8 @@ from scoring import rows_to_map, score  # noqa: E402
 HAND = {f"case_{i:02d}" for i in range(1, 11)}
 FINAL = ROOT.parent / "hackerrank-orchestrate-october26" / "runs/20261024T175408Z-427c28/output.csv"  # frozen release (main checkout)
 VARIANTS = {   # first entry is the comparison baseline
-    "release 2 (C1)": {"SECONDARY_ID_RULE": True},
-    "B1 batch attribution, future checks only": {"SECONDARY_ID_RULE": True, "BATCH_ATTRIBUTION": "future"},
-    "B1 batch attribution, assessed and cited": {"SECONDARY_ID_RULE": True, "BATCH_ATTRIBUTION": "cite"},
+    "current (C1 + P1)": {"SECONDARY_ID_RULE": True, "PDF_SUBJECT_SCOPE": True},
+    "release 2 (C1, P1 off)": {"SECONDARY_ID_RULE": True, "PDF_SUBJECT_SCOPE": False},
 }
 LINK_FLAGS = {"PROPAGATE", "STATUS_FILTER", "ORDINAL", "ORDINAL_SAME_STREAM"}
 
@@ -43,6 +43,7 @@ def set_flags(flags):
     core.RETAINED_FUTURE_CHECK = flags.get("RETAINED_FUTURE_CHECK", False)
     core.ACCOUNT_FUTURE_CHECK = flags.get("ACCOUNT_FUTURE_CHECK", False)
     core.BATCH_ATTRIBUTION = flags.get("BATCH_ATTRIBUTION", "")
+    evidence.PDF_SUBJECT_SCOPE = flags.get("PDF_SUBJECT_SCOPE", True)
 
 
 def identity(ctx, gold):

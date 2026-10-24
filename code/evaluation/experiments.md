@@ -345,3 +345,63 @@ Decision: **REVERT** (flag committed off). This closes the batch-attribution lin
   limiting language ("only", "keep", "don't") is a non-deletion request already classified
   NOT_APPLICABLE. No partial-scope deletion requests to model.
 - **Citation kinds:** neither gold nor our output cites `activity_*` or `audit_*` ids.
+
+## Evaluation-only coverage audit (E27, 25 Oct ~01:30–02:45 IST)
+Question: which patterns in the 508 deletion-authorised evaluation rows do the 32 samples never
+exercise, and does the engine handle them correctly? Every check below was measured before any code
+change (scratch scripts: inventory, raw-id coverage, cross-person, trace, drift, stale-row,
+future-stamp, identity-reuse).
+
+### Priority 1 — parser risks
+- **P1, multi-person PDF (confirmed defect, fixed).** `parse_pdf` gave every resource named in a
+  document all identifiers printed anywhere in it, and a catalog alias that is a user id
+  (`user_17` → `tombstone_17`) counted as a mention of the record. The disputed-orders register
+  `evidence_27` prints six users, so `tombstone_17` was linked to case_08, 12, 17, 21, 24 and 29.
+  A scan of all 2932 parsed observations for identifiers of more than one person (identity table and
+  raw email/phone/reference values) found this **one** observation and nothing else. Affected:
+  6 sample links (no step on any of them), 0 evaluation links, 0 output steps.
+  Fix (`evidence.PDF_SUBJECT_SCOPE`): a user id names a person, not a record, so user-id aliases do not
+  name resources; in a document printing more than one person's reference or email, a resource carries
+  only the identifiers on the lines that name it. Tests `tests/test_pdf_scope.py` (5): the alias
+  defect reproduced with the flag off; register rows carry only their own identifiers; another
+  person's row never links; a single-person statement keeps all identifiers; a non-user alias still
+  names its record inside a register. Result: `tombstone_17` linked only to case_17 (via catalog
+  `activity_4011`). Full shared path (`main.py`, approved case_63 fallback): **output byte-identical**
+  to release 2 (sha256 aead4424…f767c), 0 provider requests; samples status 0.906, exact 11/32,
+  P/R/F1 1.000/0.834/0.910, resource recall 0.712, grounding unchanged. Decision: **KEEP** (removes
+  confirmed wrong links; not a score improvement).
+- **Log traces.** 1,025 traces: none carries two lookup values or two resources, so carrying the
+  `*_started` key across a trace cannot cross subjects. Lines without a trace id are self-contained
+  `record_lookup` rows. No defect.
+- **evidence_90 has zero observations — valid.** It is a `customer_data_inventory_capture` whose
+  `snapshot_scope` declares only `account_service` and whose tables are empty (one INSERT, the scope
+  row). Every complete profile capture in the dataset holds 0–4 accounts, and gold cites the 0-row
+  `evidence_51` as account-absence proof (case_31), so an empty scoped table is the dataset's
+  convention, not an extraction failure. No account that appears in the captures before and after it
+  is missing from it. 0 evaluation rows cite it.
+- **Raw-id coverage.** Every resource id in every SQL/JSON/log/text file is parsed except 4:
+  `support_7731` (a thumbnail-failure log line with no state or subject) and three
+  `source_resource_id` values in `evidence_57` (search document → account). That reference column is
+  a direct record-level tie (`search_001` → `account_006`) that the parser drops; it exists only in
+  this handcrafted sample file, gold uses an uncited future check for `account_006` which the engine
+  already produces via the inferred tier, so it changes no row. Not implemented.
+
+### Priority 2 — evaluation-only patterns
+| Pattern | Samples | Evaluation | Finding |
+|---|---|---|---|
+| state taken from regional/reporting/failover SQL replicas | 0 | 140 | same payload code path as the read replicas the samples use; 0 primary/replica disagreements inside a file after the request |
+| lookup-record JSON (export/integration services) and lookup logs (delivery/search index) | 0 | 151 | same `lookup_record` path as sample formats; all `result` values (FOUND, NOT_FOUND, IDENTIFIABLE, ANONYMIZED, REDACTED, ACTIVE, DISABLED, BLOCKED, hit/miss) mapped |
+| state cited from screenshots | 0 | 15 steps | checked by eye: case_45's six audit records are all user_03 on a subject-filtered screen; case_46's tombstone screen shows no name/email/phone (redacted) |
+| record stamped after `audit_at` inside a file captured at `audit_at` | 0 | 2 (case_135, case_383) | `account_1417` FOUND at 08-14 in a file exported 08-12; `visible()` requires record time ≤ `audit_at`, so the account is ABSENT at audit time — correct |
+| COMPLETE whose only step is a retained audit record | 2 (case_21, 25) | 77 | status matches gold on both samples; the missing account/analytics steps are the evidence_92 batch problem (E26), not a new defect |
+| INCOMPLETE without an account step | 8 | 217 | ownership UNRESOLVED; timing-based assignment stays rejected |
+| search entry / account present without identifiers, action DELETE | 0 | 27 | `plan()` reports any present DELETE record as remaining — correct |
+| legal-hold records | 0 | 6 | RETAIN → VERIFY_RECORD_PRESENT, per `deletion_rules.csv` |
+| historical phone link | 0 | 1 | no identifier in `user_identities` or `user_audit_log` was ever held by two users; user ids are unique (no `user_3`/`user_03` collision) |
+| stale snapshot row (record time before request, file after) | 0 | 0 | none among linked resources |
+| UNKNOWN state on a linked record | 8 | 4 | no step, as gold does for the sample cases with this state |
+| investigator | 4 cases | 2 cases (46, 63) | no other evaluation row raised a question |
+| request authorisation | 0 non-deletion | 10 NOT_APPLICABLE | all 10 are non-deletion texts; all others are deletion requests in EN/ES/PT/FR/KO/JA |
+
+Conclusion: no evaluation-only pattern found a wrong decision; one parser defect (P1) produced wrong
+links that never reached the output. The submitted output is unchanged.

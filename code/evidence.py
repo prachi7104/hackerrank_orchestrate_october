@@ -360,21 +360,43 @@ PHONE_RE = re.compile(r"\+\d[\d ()-]{7,}\d")
 USER_RE = re.compile(r"\buser_\d+\b")
 
 
-def parse_pdf(fid, cap, path: Path, origin: str, aliases: dict | None = None) -> list[Observation]:
-    """A business document that names a resource id is evidence that the record exists at capture
-    time and carries the identifiers printed in it. A support-platform document is an attachment."""
-    text = pdf_text(path)
+PDF_SUBJECT_SCOPE = True    # P1 (kept): no user-id aliases; row-scoped identifiers in multi-person documents
+
+
+def pdf_identifiers(text: str) -> dict:
     content = {}
     for i, v in enumerate(EMAIL_RE.findall(text)):
         content[f"email#{i}"] = v
     for i, v in enumerate(PHONE_RE.findall(text)):
         content[f"phone#{i}"] = v
-    refs = {f"customer_reference#{i}": v for i, v in enumerate(USER_RE.findall(text))}
-    out = []  # repeated fields are keyed field#n; field_name() strips the suffix
-    named = set(RESOURCE_RE.findall(text)) | {rid for alias, rid in (aliases or {}).items() if alias in text}
+    content.update({f"customer_reference#{i}": v for i, v in enumerate(USER_RE.findall(text))})
+    return content
+
+
+def parse_pdf(fid, cap, path: Path, origin: str, aliases: dict | None = None) -> list[Observation]:
+    """A business document that names a resource id is evidence that the record exists at capture
+    time and carries the identifiers printed in it. A support-platform document is an attachment.
+
+    With PDF_SUBJECT_SCOPE: a user id names a person, not a record, so a user-id alias does not
+    name a resource; and when the document prints more than one person's reference or email (a
+    register), a resource carries only the identifiers on the lines that name it."""
+    text = pdf_text(path)
+    whole = pdf_identifiers(text)  # repeated fields are keyed field#n; field_name() strips the suffix
+    aliases = aliases or {}
+    if PDF_SUBJECT_SCOPE:
+        aliases = {a: r for a, r in aliases.items() if not USER_RE.fullmatch(a)}
+    multi = PDF_SUBJECT_SCOPE and (len(set(USER_RE.findall(text))) > 1 or len(set(EMAIL_RE.findall(text))) > 1)
+    out = []
+    named = set(RESOURCE_RE.findall(text)) | {rid for alias, rid in aliases.items() if alias in text}
     for rid in sorted(named):
+        if multi:
+            names = {rid} | {a for a, r in aliases.items() if r == rid}
+            lines = [ln for ln in text.splitlines() if any(re.search(rf"(?<![\w.-]){re.escape(n)}(?![\w-])", ln) for n in names)]
+            content = pdf_identifiers("\n".join(lines))
+        else:
+            content = whole
         obs = Observation(fid, cap, cap, rid, system_for(rid), exists=True,
-                          content={**content, **refs}, collection="pdf", locator="text layer")
+                          content=content, collection="pdf", locator="text layer")
         if origin == "support_platform" and rid.startswith("support_"):
             obs.category = "SUPPORT_ATTACHMENT"
         out.append(obs)
