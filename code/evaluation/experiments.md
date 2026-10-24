@@ -299,3 +299,49 @@ off; one determinism fix: anchor ties broken by event time then activity id inst
 Final run `20261024T191056Z-9f3268`, reproduction `20261024T191058Z-7b1bdb`: output sha256
 aead4424…f767c, identical to release 1; 0 provider requests. Samples (full path): status 0.906,
 exact 11/32, step P/R/F1 1.000 / 0.834 / 0.910, resource recall 0.712.
+
+### B1 — batch attribution inside audit readback snapshots (E26, 25 Oct ~01:00 IST)
+Hypothesis: a readback export such as `evidence_92` is a closed snapshot of one batch of requests, so
+an identifier-less account or analytics record in it belongs to the batch request whose
+deletion-worker operation (DELETE / ANONYMIZE) falls in that request's lifecycle. Flag
+`core.BATCH_ATTRIBUTION` ("" off, "future" = uncited future checks only, "cite" = assessed and cited).
+
+| Variant | exact | F1 | wins / losses | eval rows changed | unsupported eval citations |
+|---|---|---|---|---|---|
+| release 2 (C1) | 11 | 0.910 | — | — | 0 (+ case_55) |
+| B1 future | 10 | 0.895 | none / case_11 | 0 | — |
+| B1 cite | 10 | 0.895 | none / case_11 | 20 | 22 |
+
+Diagnosis: the only sample attribution was wrong (`analytics_9447` → case_11, from `evidence_03`).
+`evidence_92` is not a per-request structure: records are listed by resource id, their
+`observed_at` times do not cluster by subject, and it is the post-request audit file for 9 requests
+(case_21, 23–30) whose lifecycles overlap. `account_6440` (gold for case_21) appears only as a 404
+lookup in `evidence_92` and as worker event `activity_3661`; case_23 admits it under the same rule.
+A stricter global-elimination variant (forced unique pairs, PDF links excluded from snapshot
+definition) made **0** sample assignments: case_25/26 compete for `account_3136`, case_27/28/29 for
+`account_5482`, and the gold `account_3866` is not even inside case_27's lifecycle. The gold
+attribution for these five COMPLETE samples is not recoverable from admissible evidence plus
+lifecycle constraints; it would need worker timing or reported status, both already rejected.
+Decision: **REVERT** (flag committed off). This closes the batch-attribution line.
+
+### Where the remaining sample loss actually is (E26 diagnostics)
+- **Engine given the right resources:** with the gold resource set and primary account substituted
+  (diagnostic only), 23/32 samples are exact. Of the 9 misses, 7 are only the uncited future
+  `VERIFY_RECORD_PRESENT` for audit records that appear in files exported after `audit_at` or in
+  no file (case_09, 18, 20, 23, 24, 29, 30); case_04 is a handcrafted citation convention
+  (`evidence_54` vs the later `evidence_90`; generated case_31 follows the latest-capture rule the
+  engine uses); case_10 is fixed by the investigator in the full path. So the treatment, state,
+  ordering and citation logic is not where generated-sample loss comes from: it is all resource
+  identification.
+- **Unlinked gold resources (32 samples):** 17 ids exist in no evidence file (15 accounts, 2 audit records;
+  accounts at most in worker events), 6 only in files captured after `audit_at`, 12 visible but identifier-less
+  (10 of them in `evidence_92`). None carries a name, display name, hash or reference that the
+  identity graph fails to use.
+- **Scoped-inventory absence for non-account systems:** the SQL inventories declare all systems in
+  `snapshot_scope`, but only 4 linked evaluation resources (and 0 generated-sample resources) have
+  an unknown state that such absence could settle, and no gold step cites an inventory for a
+  non-account absence. Not implemented.
+- **Request scope:** 375 distinct request texts in the evaluation set; every English text with
+  limiting language ("only", "keep", "don't") is a non-deletion request already classified
+  NOT_APPLICABLE. No partial-scope deletion requests to model.
+- **Citation kinds:** neither gold nor our output cites `activity_*` or `audit_*` ids.

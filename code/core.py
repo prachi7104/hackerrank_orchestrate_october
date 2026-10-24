@@ -44,6 +44,7 @@ ACCOUNT_POLICY = "D"
 CITE_INFERRED = False      # experiment A3: an inferred primary account is assessed and cited like a linked one
 ACCOUNT_FUTURE_CHECK = False    # experiment R2: record-time account evidence may add an uncited future absence check
 RETAINED_FUTURE_CHECK = False   # experiment R1: record-time evidence may add uncited future checks of retained records
+BATCH_ATTRIBUTION = ""         # experiment B1: "" off | "future" uncited future checks only | "cite" assessed and cited
 SECONDARY_ID_RULE = True   # experiment C1 (KEPT, E21): a record whose only content is a hashed identifier is SECONDARY_IDENTIFIER
 EMAIL_FIELDS = ("email", "requester_email", "customer_email", "owner_email")
 # Categories whose state may be taken from captures made before requested_at (development
@@ -102,6 +103,7 @@ class AuditContext:
                                  if r.startswith("account_")} for c in cases}
         self.accounts: dict[str, AccountLink] = assign_accounts(cases, direct, self.activities, status_compat)
         self.owner_of_key = self.identities.owner_index()
+        self._cases = cases
         self.ownership: dict[str, Ownership] = conditional_ownership(
             cases, direct, self.activities, self.owned_by_other,
             lambda c: set(self.linked(c, self.subjects[c["case_id"]])))
@@ -259,6 +261,63 @@ def subject_absence(ctx: AuditContext, case: dict, rid: str) -> str:
     return best
 
 
+BATCH_OPS = {"account_": ("account_service", "DELETE_RECORD"), "analytics_": ("analytics_platform", "ANONYMIZE_RECORD")}
+
+
+def batch_attribution(ctx: AuditContext, cases: list[dict]) -> dict[str, dict]:
+    """B1 (experiment). An audit readback file is a snapshot of a batch of requests. A record in the
+    snapshot that carries no person identifier, and that no request links by evidence, is attributed
+    to request c only when:
+      * the snapshot is one of c's own audit files (it evidences c's linked resources, captured
+        <= audit_at, observed >= requested_at);
+      * it is the only such unattributed record of its kind (account / analytics) whose
+        deletion-worker operation (DELETE / ANONYMIZE) falls in c's lifecycle
+        [requested_at, reported_at + 15 min], at or before audit_at;
+      * no other request admits the same record under the same rule.
+    No reported_status / reported_result. Returns {case_id: {resource_id: basis}}."""
+    from linking import LIFECYCLE_TOLERANCE_MIN, _t
+    known = set(ctx.owner_of_key)
+    linked_any = set()
+    snapshot_files = {}
+    for c in cases:
+        links = ctx.linked(c, ctx.subjects[c["case_id"]])
+        linked_any |= set(links)
+        snapshot_files[c["case_id"]] = {o.file_id for r in links for o in ctx.by_resource[r]
+                                        if ctx.visible(o, c["audit_at"]) and o.observed_at >= c["requested_at"]}
+    ops = {}
+    for a in ctx.activities:
+        for prefix, (target, etype) in BATCH_OPS.items():
+            if a["resource_id"].startswith(prefix) and a["target_system"] == target and a["event_type"] == etype:
+                ops.setdefault(a["resource_id"], []).append(a)
+    unattributed = {}
+    for o in ctx.observations:
+        if o.resource_id.startswith(tuple(BATCH_OPS)) and o.resource_id not in linked_any:
+            unattributed.setdefault(o.file_id, set()).add(o.resource_id)
+    for fid, rids in unattributed.items():   # drop records any observation attributes to a person
+        unattributed[fid] = {r for r in rids if not any(ob.keys() & known for ob in ctx.by_resource[r])}
+    claims = {}
+    for c in cases:
+        hi = _t(c["reported_at"])
+        for fid in snapshot_files[c["case_id"]]:
+            for r in unattributed.get(fid, ()):
+                if any(c["requested_at"] <= a["event_time"] <= c["audit_at"]
+                       and (_t(a["event_time"]) - hi).total_seconds() / 60 <= LIFECYCLE_TOLERANCE_MIN for a in ops.get(r, [])):
+                    claims.setdefault(c["case_id"], {}).setdefault(r[:r.index("_") + 1], set()).add((r, fid))
+    claimants = {}
+    for kinds in claims.values():
+        for found in kinds.values():
+            for r, _ in found:
+                claimants[r] = claimants.get(r, 0) + 1
+    out = {}
+    for cid, kinds in claims.items():
+        for prefix, found in kinds.items():
+            rids = {r for r, _ in found}
+            if len(rids) == 1 and claimants[next(iter(rids))] == 1:
+                r, fid = next(iter(found))
+                out.setdefault(cid, {})[r] = f"BATCH_INFERRED: only unattributed {prefix[:-1]} record in audit snapshot {fid} with a worker operation in the request lifecycle"
+    return out
+
+
 def retained_future_checks(ctx: AuditContext, case: dict, already: set) -> list[str]:
     """R1 (experiment): retained-category records (security audit, legal hold) of the subject that
     appear only in files exported after audit_at, but whose own record time lies between requested_at
@@ -361,6 +420,13 @@ def audit_case(ctx: AuditContext, case: dict, authorizes_deletion: bool, overrid
         links.pop(rid)
     if ACCOUNT_POLICY == "C" and acct and acct.resource_id and acct.resource_id not in links:
         links[acct.resource_id] = f"activity:{acct.activity_id} ({acct.method})"
+    batch = {}
+    if BATCH_ATTRIBUTION:
+        if not hasattr(ctx, "batch"):
+            ctx.batch = batch_attribution(ctx, ctx._cases)
+        batch = {r: why for r, why in ctx.batch.get(cid, {}).items() if r not in links}
+        if BATCH_ATTRIBUTION == "cite":
+            links.update(batch)
     links.update(ov.get("add_links", {}))
     for rid in ov.get("drop", ()):
         links.pop(rid, None)
@@ -411,6 +477,11 @@ def audit_case(ctx: AuditContext, case: dict, authorizes_deletion: bool, overrid
         for a in assessments:
             if a.resource_id == primary and a.state == "UNKNOWN":
                 verify_after.append(Step("VERIFY_RECORD_ABSENT", "account_service", a.resource_id))
+        if BATCH_ATTRIBUTION == "future":
+            for r in batch:
+                if not any(a.resource_id == r for a in assessments):
+                    op = "VERIFY_RECORD_ABSENT" if r.startswith("account_") else "VERIFY_RECORD_ANONYMIZED"
+                    verify_after.append(Step(op, system_for(r), r))
         if RETAINED_FUTURE_CHECK:
             for rid in retained_future_checks(ctx, case, {a.resource_id for a in assessments}):
                 verify_after.append(Step("VERIFY_RECORD_PRESENT", system_for(rid), rid))
