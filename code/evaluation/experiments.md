@@ -186,3 +186,26 @@ comparison only; final generation never enables it.
 - Retained audit records visible only after `audit_at` or nowhere: case_09, 18, 20, 23, 24, 29, 30.
 - Category semantics: case_10 (support replica record → gold DELETE), case_12 (hash-keyed analytics → gold DELETE).
 - Handcrafted accounts with no activity match: case_04 (appears in no file), 06, 08.
+
+## Accuracy round on branch `exp/accuracy` (from `final-src`; rollback = `final-artifacts`)
+
+Loss decomposition (`diagnose.py`, 32 samples, current engine): 0 resources missed that admissible
+evidence ties to the subject (no parsing or join bugs). Missing gold steps by cause: primary account
+only in worker activity 11; record visible but with no subject identifier 7 (anonymised analytics)
++ 5 (accounts shown 404 with no key); only in files after `audit_at` 5 (+1 account); nowhere 3;
+treatment (case_12) 3 missing + 3 extra; state 1. Oracle ceilings (diagnostic only, gold ids
+substituted): primary accounts 16/32 exact, F1 0.924; full resource set 22/32, F1 0.944.
+
+Deterministic experiments (`experiment.py`, investigator off, 0 requests; baseline 10/32, F1 0.881):
+
+| # | Change | exact (hand/gen) | P / R / F1 | identity correct/wrong/unresolved | metamorphic (shuffled status) | Decision |
+|---|---|---|---|---|---|---|
+| A1 | iterate exclusivity after each assignment round | 10 (3/7) | 0.975 / 0.803 / 0.881 | 14 / 0 / 18 | 0 changes | REVERT (no effect) |
+| A2 | A1 + reported_result must match reported_status | 10 (1/9): +22, +32, −06, −08 | 0.975 / 0.819 / 0.890 | 19 / 0 / 13 | **113 ownership changes** | REVERT (depends on reported_status) |
+| A3 | inferred account assessed and cited like a linked one | 10 (3/7) | 0.975 / 0.803 / 0.881 | 14 / 0 / 18 | — | REVERT (no sample gain, +1 unsupported eval citation) |
+| C1 | a record whose only content is a hashed identifier is SECONDARY_IDENTIFIER (rule_02, DELETE) | **11 (3/8)**: +12 | **0.994 / 0.819 / 0.898** | unchanged | — | **KEEP** (0 evaluation rows change) |
+
+E21 full shared path with C1 (model classification + investigator, cache only, 0 requests):
+status 0.906, exact 11/32, step P/R/F1 1.000 / 0.834 / 0.910, resource recall 0.712. Tests added:
+hash-only vs hash+email record (metamorphic), inclusive/strict `audit_at` boundary on case_14,
+unrelated-subject evidence leaves case_11 unchanged.

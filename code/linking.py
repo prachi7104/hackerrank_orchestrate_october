@@ -40,6 +40,8 @@ def primary_deletes(activities: list[dict]) -> dict[str, dict]:
 
 LIFECYCLE_FALLBACK = False   # experiment X1: anchorless cases may use a lifecycle-unique candidate
 LIFECYCLE_TOLERANCE_MIN = 15
+PROPAGATE = False      # experiment A1: iterate exclusivity after each round of assignments
+STATUS_FILTER = False  # experiment A2: also require reported_result to match reported_status
 ANCHOR_WINDOW_MIN = 180   # result is flat for windows of 120-360 min (experiments.md, E14)
 
 
@@ -101,11 +103,28 @@ def conditional_ownership(cases: list[dict], direct: dict[str, set], activities:
         cands[cid] = {rid for rid, a in deletes.items()
                       if rid not in taken and a["event_time"] >= c["requested_at"]
                       and 0 <= (t0 - _t(a["event_time"])).total_seconds() / 60 <= ANCHOR_WINDOW_MIN
-                      and not other_owner(c, rid)}
+                      and not other_owner(c, rid)
+                      and (not STATUS_FILTER or a["reported_result"] == STATUS_RESULT.get(c["reported_status"]))}
     claimants: dict[str, int] = {}
     for cand in cands.values():
         for rid in cand or ():
             claimants[rid] = claimants.get(rid, 0) + 1
+    if PROPAGATE:   # A1: an account given to one request leaves every other request's candidate set
+        changed = True
+        while changed:
+            changed = False
+            for cid, cand in cands.items():
+                if cand and len(cand) == 1 and claimants[next(iter(cand))] == 1:
+                    rid = next(iter(cand))
+                    for other, oc in cands.items():
+                        if other != cid and oc and rid in oc:
+                            oc.discard(rid)
+                            changed = True
+                    claimants[rid] = 1
+            claimants = {}
+            for cand in cands.values():
+                for rid in cand or ():
+                    claimants[rid] = claimants.get(rid, 0) + 1
     for cid, cand in cands.items():
         if cand and len(cand) == 1 and claimants[next(iter(cand))] == 1:
             rid = next(iter(cand))

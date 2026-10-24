@@ -41,6 +41,8 @@ SYSTEM_CATEGORY = {
 #   D  three-tier: DIRECT, else CONDITIONALLY_INFERRED (unique lifecycle match, no status),
 #      used only for uncited post-remediation checks; otherwise UNRESOLVED
 ACCOUNT_POLICY = "D"
+CITE_INFERRED = False      # experiment A3: an inferred primary account is assessed and cited like a linked one
+SECONDARY_ID_RULE = True   # experiment C1 (KEPT, E21): a record whose only content is a hashed identifier is SECONDARY_IDENTIFIER
 EMAIL_FIELDS = ("email", "requester_email", "customer_email", "owner_email")
 # Categories whose state may be taken from captures made before requested_at (development
 # experiments only; empty means the post-request rule applies to every category).
@@ -172,6 +174,11 @@ def assess(ctx: AuditContext, rid: str, case: dict, link: str, primary: str | No
     system = next((o.system_id for o in visible if o.system_id != "unknown"), system_for(rid))
     category = next((o.category for o in sorted(visible, key=lambda o: o.observed_at, reverse=True) if o.category), None)
     category = category or SYSTEM_CATEGORY.get(system, "UNKNOWN")
+    if SECONDARY_ID_RULE and visible:
+        held = [o for o in visible if o.content]
+        if held and all(set(o.content) == {"correlation_key"} and re.fullmatch(r"[0-9a-f]{64}", o.content["correlation_key"])
+                        for o in held):
+            category = "SECONDARY_IDENTIFIER"
     action = "PROCESS" if category == "DATA_FLOW" else ctx.rules.get(category, {}).get("required_action", "UNKNOWN")
     # State must be observed after the request was made: an earlier capture shows the record before
     # the deletion workflow ran, so it can link the resource but cannot say what remains at audit_at.
@@ -323,6 +330,9 @@ def audit_case(ctx: AuditContext, case: dict, authorizes_deletion: bool, overrid
     elif ACCOUNT_POLICY == "D":
         primary = direct_account or (own.resource_id if own else None)
         future_only = own.resource_id if own and own.tier == "CONDITIONALLY_INFERRED" else None
+        if CITE_INFERRED and future_only:
+            links.setdefault(future_only, f"CONDITIONALLY_INFERRED: {own.basis}")
+            future_only = None
     else:
         primary, future_only = direct_account, None
     primary = ov.get("primary") or primary
