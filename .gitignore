@@ -10,3 +10,4 @@ agent-trace.zip
 runs/
 output.csv.tmp
 submission/
+.experiments/
