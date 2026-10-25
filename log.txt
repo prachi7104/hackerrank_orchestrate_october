@@ -3860,3 +3860,44 @@ repo_root=C:\projects\hackerrank orchestrate\hackerrank-orchestrate-october26
 worktree=C:\projects\hackerrank orchestrate\ghost-exp
 parent_agent=none
 
+## [2026-10-25T17:13:32+05:30] Removed release 1 and release 2 staged files; final files kept
+
+User Prompt (verbatim, secrets redacted):
+delete release 1 and release 2 files only keep final ones
+
+Agent Response Summary:
+Sent the release-1 staged folder (hackerrank-orchestrate-october26/submission, 5 files) and its root code.zip, and the five release-2 staged files at the top of ghost-exp/submission, to the Windows Recycle Bin so they can be restored. ghost-exp/submission/final (the uploaded release-3 files) is unchanged, with hashes verified. Git tags, branches and committed history for releases 1 and 2 were not touched; none of the removed files was tracked.
+
+Actions:
+* PowerShell FileSystem.DeleteFile/DeleteDirectory with SendToRecycleBin (11 files, 1 folder)
+* sha256 of submission/final files; git status clean
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=main
+repo_root=C:\projects\hackerrank orchestrate\hackerrank-orchestrate-october26
+worktree=C:\projects\hackerrank orchestrate\ghost-exp
+parent_agent=none
+
+## [2026-10-25T17:15:46+05:30] GitHub reduced to main only: release 3 code and submission files
+
+User Prompt (verbatim, secrets redacted):
+my final release 3 implementation files and submission files all must be pushed to main only
+
+Agent Response Summary:
+Verified main holds the release-3 implementation (code identical to final-src-3, reports identical to final-artifacts-3) and the uploaded submission/final files. Committed the latest log.txt to main, pushed main, then deleted the solution and exp/accuracy branches from the private GitHub repo so main is its only branch. exp/accuracy is fully contained in main; the release-1 solution tip stays reachable through the final-artifacts tag, so no history is lost. Tags and local branches were kept.
+
+Actions:
+* git diff final-src-3/final-artifacts-3 vs main (identical)
+* git commit log.txt; git push private main
+* git push private --delete solution exp/accuracy; git ls-remote --heads private
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=main
+repo_root=C:\projects\hackerrank orchestrate\hackerrank-orchestrate-october26
+worktree=C:\projects\hackerrank orchestrate\ghost-exp
+parent_agent=none
+
