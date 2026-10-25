@@ -1,0 +1,12 @@
+{
+  "staged_at": "2026-10-25T11:33:29+00:00",
+  "source": {"tag": "final-src-3", "commit": "bb11d74", "artifacts_tag": "final-artifacts-3", "main": "ed14fa6 (private remote main)"},
+  "files": {
+    "code.zip": {"bytes": 121781, "sha256": "0fae0ef6e7032c65f085715e714fe2d684af2265d5e9115e3ad2baf6ebd34fba"},
+    "output.csv": {"bytes": 541521, "sha256": "aead44244a9a08131f7cb29c960b372188dbaa7804b1d314ea1a53651f3f767c"},
+    "log.txt": {"bytes": 266344, "sha256": "008ed748feb1fa258f4115183dcc89d875871c83f316b57db617fc41a7c513bb"},
+    "agent-trace.zip": {"bytes": 32131460, "sha256": "a9e2db2b6f066e0e83bab7b9e341aa1745edbf631ff59139d294fd64a1729baf"}
+  },
+  "exceptions": {"case_55": "restore risk reported from evidence_32; grounding note disclosed", "case_63": "UNRESOLVED_EVIDENCE written as INCOMPLETE [] (approved, disclosed)"},
+  "validation": {"structural_errors": 0, "semantic_errors": 1, "tests": "40 passed", "model_requests": 0, "cache_hits": 60}
+}
